@@ -48,33 +48,127 @@ You will see these terms throughout the tool and these docs:
 - Sidecar: the file the tool writes, named `.anchors.json`, that stores all the
   anchors next to the documentation.
 
-## How you use it
+## What the output looks like
 
-There are three commands. Each takes two arguments, in this order: the
-documentation directory, then the name of the codebase-memory-mcp project for
-that codebase.
+The Drupal adapter writes its documentation under `docs/semantic/` in the
+project being documented. There are three kinds of files. The examples below are
+made up; a real run produces the same shapes from your own code.
 
-```bash
-# 1. anchor: for every Logic ID, find the code it points to, record a
-#    fingerprint, and write the sidecar (<docs>/.anchors.json).
-livedocs anchor docs/semantic my-project
+A structural index, generated straight from the code (no AI). One file per
+aspect, listing what exists. For example `docs/semantic/structural/services.md`:
 
-# 2. check: look up each anchored Logic ID again and compare. Print any that
-#    changed, moved, or vanished. Exit code is 0 when everything matches and 1
-#    when anything is stale, so you can use it as a pre-push or CI gate.
-livedocs check docs/semantic my-project
-
-# 3. enrich: show the live call graph around the code for one Logic ID.
-livedocs enrich docs/semantic my-project REG-L1
+```
+| Service | Class | Dependencies | Module | Tags |
+|---------|-------|--------------|--------|------|
+| `shop.order_manager` | `Drupal\shop\OrderManager` | @entity_type.manager,@current_user | shop | - |
 ```
 
-`check` prints the exact Logic IDs that are stale. You can feed that list into
-whatever process regenerates the affected docs, so you only redo the parts that
-actually drifted.
+Tech specs, one per feature, each with a Logic-to-Code table. This is the part
+livedocs anchors. Every row gives a Logic ID, a plain-language description, the
+file, and the exact method (`docs/semantic/tech/ORD_01_Orders.md`):
 
-The documentation directory must contain a `tech/` folder of Markdown files,
-each holding a table that maps Logic IDs to methods. The exact table format is
-described in `core/README.md`.
+```markdown
+---
+type: tech_spec
+feature_id: ORD
+feature_name: Orders
+module: shop
+last_updated: 2026-06-24
+logic_id_count: 2
+---
+
+# ORD_01: Orders
+
+## Logic-to-Code Mapping
+
+| Logic ID | Description | File | Function/Method | Complexity |
+|----------|-------------|------|-----------------|------------|
+| ORD-L1 | Place an order and reserve stock | `src/OrderManager.php` | `OrderManager::placeOrder()` | high |
+| ORD-L2 | Cancel an order and release stock | `src/OrderManager.php` | `OrderManager::cancelOrder()` | medium |
+```
+
+The sidecar, written by `livedocs anchor` into `docs/semantic/.anchors.json`.
+One record per Logic ID, tying it to a graph node and a fingerprint of the code.
+This is what `check` compares against (record abbreviated):
+
+```json
+{
+  "logic_id": "ORD-L1",
+  "declared_file": "src/OrderManager.php",
+  "method": "placeOrder",
+  "qualified_name": "shop.src.OrderManager.OrderManager.placeOrder",
+  "content_hash": "a1b2c3d4...",
+  "signature": "(OrderInterface $order, AccountInterface $account)",
+  "status": "ok"
+}
+```
+
+## How the documentation is generated
+
+The two layers are produced in different ways.
+
+The structural index is deterministic. The adapter's shell generators read the
+project's YAML and PHP and write the `structural/*.md` files. No AI and no graph
+are involved:
+
+```bash
+adapters/drupal/skills/structural-index/scripts/generate-all.sh /path/to/project
+```
+
+The tech specs (the Logic-to-Code tables) are written by the semantic-architect
+agent, defined in `adapters/drupal/agents/semantic-architect.md`. It turns the
+structural index plus the source code into the intent layer. For each feature
+(one Drupal module) it:
+
+- reads the structural index (`services.md` for dependencies, `methods.md` for
+  the Logic-to-Code table, and `routes.md`, `hooks.md`, `permissions.md` for
+  routing, hook, and access entries) along with the module's source code;
+- writes one tech spec, giving a Logic ID (`ORD-L1`, `ORD-L2`, ...) to each
+  meaningful unit of behavior: service methods, routes, hook implementations;
+- checks that every method it names actually exists in the code before writing
+  it.
+
+It handles one feature per run to keep each pass focused. Logic IDs are stable:
+existing ones are never renumbered, new ones are appended, and removed code is
+marked deprecated rather than deleted, so the anchors stay valid across updates.
+
+The agent and the generators are a faithful copy of the drupal-workflow plugin.
+The generators run on their own today; the single `drupal-semantic` command that
+orchestrates the agent needs the rewiring noted in `docs/REWIRING-NOTES.md`
+before it runs end to end as one command.
+
+## Creating, updating, and keeping docs in sync
+
+To create the docs the first time:
+
+1. Index the project with codebase-memory-mcp (the installer makes sure it is
+   present).
+2. Generate the structural index with `generate-all.sh` (above).
+3. Run the semantic-architect agent, one feature at a time, to write the tech
+   specs.
+4. `livedocs anchor docs/semantic my-project` records which code each Logic ID
+   points to and writes the sidecar.
+
+To keep them in sync as the code changes:
+
+```bash
+# Does the documentation still match the code? Exit 0 = yes, 1 = something
+# drifted. Run after changes, or wire it as a pre-push or CI gate.
+livedocs check docs/semantic my-project
+```
+
+`check` prints the exact Logic IDs whose code changed, moved, or vanished. Re-run
+the semantic-architect agent for only the features it flagged (existing Logic IDs
+are preserved), then `livedocs anchor` again to record the new fingerprints. So
+you redo only the parts that actually drifted, not the whole doc set.
+
+To inspect one Logic ID, `livedocs enrich docs/semantic my-project ORD-L1` prints
+the live call graph around its code.
+
+Each command takes the documentation directory and then the codebase-memory-mcp
+project name. The documentation directory must contain a `tech/` folder of
+Markdown files with the table shown above. The exact format the core reads is in
+`core/README.md`.
 
 ## What this repo contains
 
@@ -142,13 +236,22 @@ This builds a small throwaway project, indexes it with codebase-memory-mcp,
 anchors some Logic IDs, then edits the code and confirms that `check` reports the
 right drift each time. It needs `python3` and the codebase-memory-mcp
 command-line tool on your PATH. There is an optional extra check that runs
-against a real project when the `OB_DOCS` variable points at it. See
+against a real project when you set `OB_DOCS` and `OB_PROJECT`. See
 `tests/README.md`.
+
+## Documentation
+
+- `core/README.md`: how the core matches docs to code, the exact table format
+  it reads, and the sidecar schema.
+- `adapters/drupal/README.md`: where the Drupal adapter files came from and what
+  still needs rewiring.
+- `tests/README.md`: running the end-to-end drift test.
+- `docs/REWIRING-NOTES.md`: the work left for later.
 
 ## Status
 
-This is a working proof of concept, kept in this repo only and not published. The
-core matching and drift detection are tested against real projects. The Drupal
+This is a working proof of concept. The core matching and drift detection are
+tested against real projects. The Drupal
 adapter is a faithful copy of the original plugin files and runs its structural
 generators on their own, but a few of its files still reference the old plugin
 and need rewiring before the full Drupal pipeline runs end to end. The installer

@@ -68,6 +68,7 @@ JSON
 DRY=0
 ASSUME=          # "" interactive, "y" yes, "n" no
 SKIP_CONFIG=0
+SKIP_AGENTS=0
 FORCE=0
 DO_UNINSTALL=0
 PREFIX="${HOME}/.local"
@@ -81,7 +82,8 @@ Usage: install.sh [options]
   --dry-run        Print actions without touching the filesystem.
   -y               Assume "yes" to prompts (default when non-interactive).
   -n               Assume "no" to prompts.
-  --skip-config    Do not apply the Drupal extra_extensions config to cbm.
+  --skip-config    Do not change codebase-memory-mcp config (extra_extensions, auto_index).
+  --skip-agents    Do not wire skills/command/agent into your coding agent (CLI only).
   --prefix=DIR     Install prefix for bin/ and lib/ (default: ~/.local).
   --force          Reinstall even if nothing changed.
   --uninstall      Remove everything this installer placed (see uninstall.sh).
@@ -95,6 +97,7 @@ for arg in "$@"; do
     -y)            ASSUME=y ;;
     -n)            ASSUME=n ;;
     --skip-config) SKIP_CONFIG=1 ;;
+    --skip-agents) SKIP_AGENTS=1 ;;
     --force)       FORCE=1 ;;
     --uninstall)   DO_UNINSTALL=1 ;;
     --prefix=*)    PREFIX="${arg#--prefix=}" ;;
@@ -301,6 +304,28 @@ PY
 fi
 
 # ---------------------------------------------------------------------------
+# 5b. Enable auto-index so the graph keeps itself fresh
+# ---------------------------------------------------------------------------
+step "Enabling codebase-memory-mcp auto-index"
+if [ "$SKIP_CONFIG" -eq 1 ]; then
+  info "Skipped (--skip-config)."
+elif ! command -v codebase-memory-mcp >/dev/null 2>&1; then
+  info "codebase-memory-mcp not on PATH; skipping (enable later with: codebase-memory-mcp config set auto_index true)."
+elif codebase-memory-mcp config get auto_index 2>/dev/null | grep -qi true; then
+  info "auto_index already enabled."
+elif [ "$DRY" -eq 1 ]; then
+  info "would enable auto_index (config set auto_index true; auto_index_limit 50000)"
+else
+  if codebase-memory-mcp config set auto_index true >/dev/null 2>&1 \
+     && codebase-memory-mcp config set auto_index_limit 50000 >/dev/null 2>&1; then
+    info "auto_index enabled; the graph re-indexes on git changes during an MCP session."
+    CHANGED=1
+  else
+    warn "could not enable auto_index; run manually: codebase-memory-mcp config set auto_index true"
+  fi
+fi
+
+# ---------------------------------------------------------------------------
 # 6. Place assets (bin + lib)
 # ---------------------------------------------------------------------------
 step "Installing core and Drupal adapter scripts"
@@ -430,6 +455,10 @@ fi
 # ---------------------------------------------------------------------------
 step "Wiring coding agents"
 
+if [ "$SKIP_AGENTS" -eq 1 ]; then
+  info "Skipped (--skip-agents); the livedocs command-line tool is still installed."
+else
+
 # --- Claude Code ---
 if [ -d "$HOME/.claude" ] || [ -f "$HOME/.claude.json" ]; then
   info "Claude Code: detected."
@@ -547,6 +576,8 @@ fi
 if [ -d "$HOME/.config/zed" ] || [ -d "$HOME/.zed" ]; then
   info "Zed: detected, not yet supported (no-op)."
 fi
+
+fi   # end --skip-agents guard
 
 # ---------------------------------------------------------------------------
 # 9. Finish

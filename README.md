@@ -139,31 +139,41 @@ before it runs end to end as one command.
 
 ## Creating, updating, and keeping docs in sync
 
+You do not run an index command. The installer turns on codebase-memory-mcp's
+auto-index, so while your coding agent is connected the graph indexes new
+projects and re-indexes on git changes in the background. The graph stays current
+on its own.
+
 To create the docs the first time:
 
-1. Index the project with codebase-memory-mcp (the installer makes sure it is
-   present).
-2. Generate the structural index with `generate-all.sh` (above).
-3. Run the semantic-architect agent, one feature at a time, to write the tech
+1. Generate the structural index with `generate-all.sh` (above).
+2. Run the semantic-architect agent, one feature at a time, to write the tech
    specs.
-4. `livedocs anchor docs/semantic my-project` records which code each Logic ID
+3. `livedocs anchor docs/semantic my-project` records which code each Logic ID
    points to and writes the sidecar.
 
-To keep them in sync as the code changes:
+After that, keeping the docs honest is one command, run whenever you have made
+changes:
 
 ```bash
-# Does the documentation still match the code? Exit 0 = yes, 1 = something
-# drifted. Run after changes, or wire it as a pre-push or CI gate.
-livedocs check docs/semantic my-project
+livedocs check docs/semantic my-project   # exit 0 = docs match, 1 = something drifted
 ```
 
-`check` prints the exact Logic IDs whose code changed, moved, or vanished. Re-run
-the semantic-architect agent for only the features it flagged (existing Logic IDs
-are preserved), then `livedocs anchor` again to record the new fingerprints. So
-you redo only the parts that actually drifted, not the whole doc set.
+`check` prints the exact Logic IDs whose code changed, moved, or vanished. For
+each feature it flags, re-run the semantic-architect agent (existing Logic IDs
+are preserved) and `livedocs anchor` again. So you redo only the parts that
+actually drifted, not the whole doc set. To look at one Logic ID,
+`livedocs enrich docs/semantic my-project ORD-L1` prints the live call graph
+around its code.
 
-To inspect one Logic ID, `livedocs enrich docs/semantic my-project ORD-L1` prints
-the live call graph around its code.
+In a headless setting (CI, or a pre-push hook) there is no coding-agent session,
+so the background watcher is not running and the stored graph may be behind. Index
+once before checking:
+
+```bash
+codebase-memory-mcp cli index_repository '{"repo_path":"."}'
+livedocs check docs/semantic my-project
+```
 
 Each command takes the documentation directory and then the codebase-memory-mcp
 project name. The documentation directory must contain a `tech/` folder of
@@ -218,13 +228,15 @@ Run the installer from a local checkout:
 ./install.sh --uninstall
 ```
 
-The installer puts `core/livedocs.py` on your PATH as `livedocs`, makes sure
-codebase-memory-mcp is present (installing it if it is missing), and tells
-codebase-memory-mcp to index Drupal file types such as `.module` and `.install`,
-which it skips by default. On a machine that already has the drupal-workflow
-plugin, install the command-line tool only and skip the agent and skill wiring,
-because those would collide with the plugin's. Run `./install.sh --help` for the
-options.
+The installer puts `core/livedocs.py` on your PATH as `livedocs` and makes sure
+codebase-memory-mcp is present (installing it if it is missing). It also sets two
+codebase-memory-mcp options so you do not have to manage the graph by hand: it
+turns on auto-index (so the graph re-indexes itself on git changes), and it adds
+the Drupal file types such as `.module` and `.install` that the indexer skips by
+default. On a machine that already has the drupal-workflow plugin, run
+`./install.sh --skip-agents` to install the command-line tool without the
+skills, command, and agent, because those share names with the plugin's and
+would collide. Run `./install.sh --help` for the options.
 
 ## Running the tests
 

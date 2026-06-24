@@ -34,10 +34,16 @@ short, running the adapter on its own will eventually require:
 
 - pointing `PLUGIN_ROOT` (now `CLAUDE_PLUGIN_ROOT` or the
   `/tmp/drupal-workflow-plugin-root` temp file) at the adapter root;
-- providing or removing the calls to `inject-claude-md.sh`, which was not part of
-  the copied feature and is genuinely missing here;
 - deciding what to do with text that mentions the `/drupal-refresh` command,
   which this repo does not ship.
+
+The adapter's `drupal-semantic.md` still calls
+`"$PLUGIN_ROOT/scripts/inject-claude-md.sh"`, which was not part of the copied
+feature. The core now ships a generic replacement, `livedocs inject` (see
+`core/README.md`), which `/livedocs-check` calls to keep the `## Codebase`
+section in CLAUDE.md current. Rewiring the verbatim `drupal-semantic.md` to call
+`livedocs inject` instead of the missing plugin script is part of the adapter
+rewiring above, and is left for when the copy stops being byte-for-byte.
 
 Until that work is done, the adapter scripts are kept for provenance and
 reference. The structural generators do run on their own, but the full Drupal

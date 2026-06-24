@@ -8,6 +8,7 @@
 #   - signature precedence over content
 #   - normalization negative controls (trailing-whitespace edit = NO false drift)
 #   - declaration-only fallback (unrelated comment mention = NO false drift)
+#   - CLAUDE.md injection (S0b: create, idempotent re-run, content preserved)
 # Plus an optional, non-destructive sub-test (set OB_DOCS and OB_PROJECT) that
 # exercises the legacy fp corroborator branch (sidecar poison) on a real,
 # already-indexed project and reports the disambiguation delta.
@@ -183,6 +184,52 @@ PY
 )
 grepq "S0a count-mismatch warning emitted" 'declares logic_id_count=4' "$pwarn"
 rm -rf "$PT"
+
+# --- S0b: CLAUDE.md injection (no graph; explicit project dir) ---------------
+# `livedocs inject` reuses parse_specs and needs no graph when given the project
+# dir, so it runs here without cbm. Proves: create, idempotent re-run (one marker
+# pair, one heading), correct counts, and that surrounding CLAUDE.md is preserved.
+echo "=== S0b: inject ## Codebase into CLAUDE.md ==="
+IT="$(mktemp -d)"; mkdir -p "$IT/docs/semantic/tech" "$IT/docs/semantic/structural"
+cat > "$IT/docs/semantic/tech/ORD_01_Orders.md" <<'MD'
+---
+feature_id: ORD
+module: shop
+logic_id_count: 2
+---
+| Logic ID | Description | File | Function/Method | Complexity |
+|----------|-------------|------|-----------------|------------|
+| ORD-L1 | Place an order  | `src/OrderManager.php` | `OrderManager::placeOrder()`  | high |
+| ORD-L2 | Cancel an order | `src/OrderManager.php` | `OrderManager::cancelOrder()` | low  |
+MD
+cat > "$IT/docs/semantic/tech/PAY_01_Payments.md" <<'MD'
+---
+feature_id: PAY
+module: payments
+logic_id_count: 1
+---
+| Logic ID | Description | File | Function/Method | Complexity |
+|----------|-------------|------|-----------------|------------|
+| PAY-L1 | Charge a card | `src/Gateway.php` | `Gateway::charge()` | high |
+MD
+# create path
+iout=$(python3 "$BRIDGE" inject "$IT/docs/semantic" no-such-project "$IT" 2>&1)
+echo "$iout"
+grepq "S0b reports counts (2 features, 3 Logic IDs)" '2 features, 3 Logic IDs' "$iout"
+eq    "S0b CLAUDE.md created"     "$( [ -f "$IT/CLAUDE.md" ] && echo yes )" yes
+eq    "S0b one start marker"      "$(grep -c 'livedocs:start' "$IT/CLAUDE.md")" 1
+eq    "S0b one Codebase heading"  "$(grep -c '^## Codebase'   "$IT/CLAUDE.md")" 1
+grepq "S0b stat line in section"  '2 features, 3 Logic IDs across 2 modules' "$(cat "$IT/CLAUDE.md")"
+grepq "S0b feature listing"       'Features: ORD:Orders|PAY:Payments'        "$(cat "$IT/CLAUDE.md")"
+# idempotent re-run
+python3 "$BRIDGE" inject "$IT/docs/semantic" no-such-project "$IT" >/dev/null 2>&1
+eq "S0b still one start marker after re-run"     "$(grep -c 'livedocs:start' "$IT/CLAUDE.md")" 1
+eq "S0b still one Codebase heading after re-run" "$(grep -c '^## Codebase'   "$IT/CLAUDE.md")" 1
+# preserves surrounding content (append path)
+printf '# My Project\n\nKEEP THIS LINE.\n' > "$IT/CLAUDE.md"
+python3 "$BRIDGE" inject "$IT/docs/semantic" no-such-project "$IT" >/dev/null 2>&1
+grepq "S0b preserves pre-existing CLAUDE.md content" 'KEEP THIS LINE' "$(cat "$IT/CLAUDE.md")"
+rm -rf "$IT"
 
 # --- S0/S1: fixture + first index -------------------------------------------
 echo "=== S0/S1: write fixture + index ==="

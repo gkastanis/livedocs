@@ -36,7 +36,13 @@ Steps:
 5. Refresh the sidecar so it matches the updated docs:
    `livedocs anchor <docs-dir> <project>`
 
-6. Report which Logic IDs had drifted, which spec files you updated, and confirm
+6. Refresh the `## Codebase` section in the project's CLAUDE.md so the feature
+   and Logic-ID counts stay current:
+   `livedocs inject <docs-dir> <project>`
+   This rewrites only the block between the `<!-- livedocs:start -->` and
+   `<!-- livedocs:end -->` markers and leaves the rest of CLAUDE.md untouched.
+
+7. Report which Logic IDs had drifted, which spec files you updated, and confirm
    that `livedocs check` is now clean.
 
 Do not modify specs whose Logic IDs were not flagged.

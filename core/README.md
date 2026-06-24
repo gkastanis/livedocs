@@ -94,6 +94,37 @@ next to your docs; it is meant to be committed to git.
 livedocs anchor <docs> <project>             find the node for each Logic ID, write .anchors.json
 livedocs check  <docs> <project>             report drift; exit 1 if any anchor is stale
 livedocs enrich <docs> <project> <logic_id>  print the live call graph for one Logic ID
+livedocs inject <docs> <project> [dir]       write the ## Codebase section into CLAUDE.md
 ```
+
+`project` is the codebase-memory-mcp project name in every command. `inject`
+only needs it to find the project root (where CLAUDE.md lives); pass an explicit
+project directory as the optional `dir` argument to skip the graph lookup.
+
+## Pointing CLAUDE.md at the docs
+
+`inject` writes a short `## Codebase` section into the project's CLAUDE.md so a
+coding agent reads the documentation before exploring the code by hand. The
+section lists the feature and Logic-ID counts, where the tech specs and
+structural index live, and how to find the file for a given Logic ID.
+
+It does not read any source code, only the tech specs, so it reuses the same
+parser as `anchor` and `check`. The counts can never disagree with what those
+commands see. The section is written between an HTML-comment fence:
+
+```
+<!-- livedocs:start -->
+## Codebase
+...
+<!-- livedocs:end -->
+```
+
+Running `inject` again rewrites only the text between those markers and leaves
+the rest of CLAUDE.md alone, so it is safe to run on every sync. If CLAUDE.md
+does not exist it is created; if it has an older unmarked `## Codebase` section,
+that section is adopted and wrapped in the markers. The lines that name a top
+index or the structural index appear only when those files are present, so the
+section stays correct for adapters that do not produce them. `/livedocs-check`
+runs this step after re-anchoring.
 
 codebase-memory-mcp: https://github.com/DeusData/codebase-memory-mcp

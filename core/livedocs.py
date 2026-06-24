@@ -10,8 +10,9 @@ Subcommands:
   anchor  <sem_dir> <project>            resolve Logic IDs -> graph nodes, write .anchors.json
   check   <sem_dir> <project>            detect drift against the graph (exit 1 if any)
   enrich  <sem_dir> <project> <logic_id> live call graph for one Logic ID
+  inject  <sem_dir> <project> [dir]      write a compact ## Codebase section into CLAUDE.md
 """
-import json, re, subprocess, sys, datetime, pathlib, hashlib
+import json, os, re, subprocess, sys, datetime, pathlib, hashlib
 
 BIN = pathlib.Path.home() / ".local/bin/codebase-memory-mcp"
 
@@ -262,6 +263,102 @@ def cmd_enrich(sem_dir, project, logic_id):
                                         "direction": "both", "depth": 2}), indent=2))
 
 
+CLAUDE_MD_START = "<!-- livedocs:start -->"
+CLAUDE_MD_END = "<!-- livedocs:end -->"
+
+
+def _spec_meta(sem_dir):
+    # Per-tech-spec (code, name, modules) from filename + frontmatter, in file order.
+    out = []
+    for md in sorted((sem_dir / "tech").glob("*.md")):
+        text = md.read_text()
+        stem = md.stem  # e.g. ORD_01_Orders
+        m = re.match(r"^([A-Z]+)_", stem)
+        code = m.group(1) if m else stem
+        name = re.sub(r"^[A-Z]+_\d+_", "", stem).replace("_", " ")
+        mods = []
+        mm = re.search(r"^module:\s*(.+)$", text, re.M)
+        if mm:
+            mods = [p.strip() for p in mm.group(1).split(",")
+                    if p.strip() and "(contrib)" not in p]
+        out.append((code, name, mods))
+    return out
+
+
+def _codebase_section(sem_dir, rel):
+    # Compose a compact, framework-agnostic `## Codebase` section. Lines that name
+    # adapter-specific files (a top index, the structural index) are emitted only
+    # when those files actually exist, so the core stays generic.
+    specs = _spec_meta(sem_dir)
+    logic_ids = sum(1 for _ in parse_specs(sem_dir))
+    modules = sorted({m for _, _, mods in specs for m in mods})
+
+    body = [f"- {len(specs)} features, {logic_ids} Logic IDs"
+            + (f" across {len(modules)} modules" if modules else "")]
+    index = next((f for f in ("00_BUSINESS_INDEX.md", "FEATURE_MAP.md")
+                  if (sem_dir / f).is_file()), None)
+    if index:
+        body.append(f"- Start at `{rel}/{index}` for the feature registry")
+    body.append(f"- Tech specs (one file per feature, each with a Logic-to-Code "
+                f"table): `{rel}/tech/*.md`")
+    if (sem_dir / "structural").is_dir():
+        body.append(f"- Structural index (what exists, generated from code): "
+                    f"`{rel}/structural/*.md`")
+    body.append("- A Logic ID such as `ORD-L1` names one method; find it in the "
+                f"`{rel}/tech/{{CODE}}_*.md` file for its feature")
+    body.append("- Run `/livedocs-check` to confirm the docs still match the code")
+
+    rows = [f"{c}:{n}" for c, n, _ in specs]
+    listing = "\n".join("|".join(rows[i:i + 6]) for i in range(0, len(rows), 6))
+
+    return (f"## Codebase\n\n"
+            f"This project has living documentation under `{rel}/`. Read it before\n"
+            f"exploring the code by hand; it ties each feature to the methods that\n"
+            f"implement it, and `/livedocs-check` reports when it drifts.\n\n"
+            + "\n".join(body) + "\n\n"
+            + "Features: " + listing + "\n")
+
+
+def cmd_inject(sem_dir, project, project_dir=None):
+    if not list((sem_dir / "tech").glob("*.md")):
+        print(f"  no tech specs in {sem_dir/'tech'} - skipping CLAUDE.md injection")
+        return
+    # CLAUDE.md sits at the project root: an explicit dir wins, then the graph's
+    # known root, then the docs dir's grandparent (the docs/<X>/ convention).
+    root = pathlib.Path(project_dir or project_root(project)
+                        or sem_dir.resolve().parent.parent)
+    rel = os.path.relpath(sem_dir.resolve(), root.resolve())
+    claude_md = root / "CLAUDE.md"
+
+    section = _codebase_section(sem_dir, rel)
+    block = f"{CLAUDE_MD_START}\n{section}{CLAUDE_MD_END}\n"
+
+    if not claude_md.is_file():
+        claude_md.write_text(f"# {root.name}\n\n{block}")
+        action = "created CLAUDE.md"
+    else:
+        text = claude_md.read_text()
+        if CLAUDE_MD_START in text and CLAUDE_MD_END in text:
+            text = re.sub(re.escape(CLAUDE_MD_START) + r".*?"
+                          + re.escape(CLAUDE_MD_END) + r"\n?",
+                          lambda _: block, text, count=1, flags=re.S)
+            action = "updated CLAUDE.md Codebase section"
+        elif re.search(r"^## Codebase\b", text, re.M):
+            # Adopt a pre-existing unmarked section: replace it (to next ## or EOF)
+            # and wrap the replacement in markers so future runs are clean.
+            text = re.sub(r"^## Codebase\b.*?(?=^## |\Z)",
+                          lambda _: block + "\n", text, count=1, flags=re.S | re.M)
+            action = "wrapped existing Codebase section in livedocs markers"
+        else:
+            sep = "" if text.endswith("\n\n") else "\n" if text.endswith("\n") else "\n\n"
+            text = text + sep + block
+            action = "appended Codebase section to CLAUDE.md"
+        claude_md.write_text(text)
+    specs = list((sem_dir / "tech").glob("*.md"))
+    logic_ids = sum(1 for _ in parse_specs(sem_dir))
+    print(f"  {action} ({len(specs)} features, {logic_ids} Logic IDs) -> {claude_md}")
+
+
 if __name__ == "__main__":
     args = sys.argv[1:]
     cmd, sem, proj = args[0], pathlib.Path(args[1]), args[2]
@@ -271,5 +368,7 @@ if __name__ == "__main__":
         cmd_check(sem, proj)
     elif cmd == "enrich":
         cmd_enrich(sem, proj, args[3])
+    elif cmd == "inject":
+        cmd_inject(sem, proj, args[3] if len(args) > 3 else None)
     else:
         sys.exit(f"unknown command: {cmd}")

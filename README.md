@@ -160,8 +160,9 @@ run the slash command:
 ```
 
 It runs the drift check, and if anything drifted it lists the stale Logic IDs,
-regenerates only the affected tech specs with the semantic-architect agent, and
-refreshes the sidecar. Running it inside the agent is also when the code graph is
+regenerates only the affected tech specs with the semantic-architect agent,
+refreshes the sidecar, and updates the `## Codebase` section in the project's
+CLAUDE.md (see below). Running it inside the agent is also when the code graph is
 current (the auto-index watcher is live in that session) and when the
 regeneration step can run. The installer adds this command to your agent.
 
@@ -186,6 +187,22 @@ the live call graph around its code. Each command takes the documentation
 directory and then the codebase-memory-mcp project name. The documentation
 directory must contain a `tech/` folder of Markdown files with the table shown
 above. The exact format the core reads is in `core/README.md`.
+
+### Pointing the coding agent at the docs
+
+So an agent reads the documentation before exploring the code by hand, livedocs
+writes a short `## Codebase` section into the project's CLAUDE.md: the feature
+and Logic-ID counts, where the tech specs and structural index live, and how to
+find the file for a given Logic ID. `/livedocs-check` keeps it current, or run it
+directly:
+
+```bash
+livedocs inject docs/semantic my-project
+```
+
+The section sits between `<!-- livedocs:start -->` and `<!-- livedocs:end -->`
+markers; rerunning rewrites only that block and leaves the rest of CLAUDE.md
+alone. If CLAUDE.md does not exist it is created.
 
 ## What this repo contains
 

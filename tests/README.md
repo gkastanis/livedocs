@@ -16,7 +16,8 @@ tests/test_drift.sh
 ```
 
 It prints `PASS:` or `FAIL:` for each assertion and ends with a line like
-`RESULT: 35 passed, 0 failed`. It exits non-zero if anything failed.
+`RESULT: 41 passed, 0 failed` (a few more when the optional real-project check
+runs). It exits non-zero if anything failed.
 
 ### What it checks
 
@@ -32,6 +33,9 @@ It prints `PASS:` or `FAIL:` for each assertion and ends with a line like
 - That a documentation row listing several methods in one cell still parses, and
   that a mismatch between the declared count and the parsed count prints a
   warning.
+- That `inject` writes the `## Codebase` section into CLAUDE.md, that running it
+  again replaces only that block rather than duplicating it, and that it leaves
+  the rest of CLAUDE.md alone. This part needs no graph.
 
 ### What you need
 

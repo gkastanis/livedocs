@@ -260,10 +260,10 @@ left to do is listed in `docs/REWIRING-NOTES.md`.
 
 ## License
 
-MIT. See `LICENSE`. The Drupal adapter files were copied from the drupal-workflow
-plugin (version 2.0.1), which declares MIT in its `.claude-plugin/plugin.json`
-and names Zorz, the owner of this repo, as author. That plugin ships no `LICENSE`
-file, so this repo includes a fresh MIT text. Where each adapter file came from
-is recorded in `adapters/drupal/README.md`.
+MIT, copyright gkastanis. See `LICENSE`. The Drupal adapter files were copied
+from the drupal-workflow plugin (version 2.0.1), which declares MIT in its
+`.claude-plugin/plugin.json` (with `Zorz` named as the plugin's author). That
+plugin ships no `LICENSE` file, so this repo includes a fresh MIT text. Where
+each adapter file came from is recorded in `adapters/drupal/README.md`.
 
 codebase-memory-mcp: https://github.com/DeusData/codebase-memory-mcp

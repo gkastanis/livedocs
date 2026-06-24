@@ -7,7 +7,7 @@ Nothing below has been rewired.
 
 ## 1. Make drupal-workflow depend on this repo
 
-The intended end state (decided by George on 2026-06-24) is for there to be one
+The intended end state (decided by gkastanis on 2026-06-24) is for there to be one
 copy of these files, not two that drift apart. The drupal-workflow plugin would
 keep only its build, review, and verify parts, and get the documentation feature
 from this repo instead of carrying its own copy.

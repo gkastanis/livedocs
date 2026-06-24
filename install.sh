@@ -10,7 +10,7 @@
 # UX mirrors codebase-memory-mcp's installer, but we are interpreted scripts,
 # not a compiled binary, so everything lives in this one file.
 #
-# License: MIT (see plugin.json provenance in README). Author: Zorz.
+# License: MIT (see plugin.json provenance in README). Author: gkastanis.
 #
 set -euo pipefail
 

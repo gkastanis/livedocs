@@ -16,7 +16,7 @@ session analysis, and hooks) were left behind on purpose.
 - Source: drupal-workflow 2.0.1
 - License: MIT, declared in the plugin's `.claude-plugin/plugin.json`. The plugin
   ships no `LICENSE` file.
-- Author: Zorz, who also owns this repository.
+- Author: Zorz (the plugin's declared author). This repo is maintained by gkastanis.
 
 What was copied:
 

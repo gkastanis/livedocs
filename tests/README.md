@@ -2,7 +2,7 @@
 
 ## test_drift.sh
 
-This is an end-to-end test of the drift detection in `core/cbm_bridge.py`. It
+This is an end-to-end test of the drift detection in `core/livedocs.py`. It
 builds a small throwaway PHP project in a temporary directory, indexes it with
 the codebase-memory-mcp command-line tool, anchors a handful of Logic IDs, then
 makes specific edits and checks that `check` gives the right verdict each time.

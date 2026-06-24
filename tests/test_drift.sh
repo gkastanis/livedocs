@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test_drift.sh — end-to-end drift proof for cbm_bridge.py.
+# test_drift.sh — end-to-end drift proof for livedocs.py.
 #
 # Proves content-drift detection on:
 #   - an fp-NULL short method  (the self-owned content_hash fallback)
@@ -20,7 +20,7 @@ FIX=$SCRATCH/drift_fixture
 SEM=$FIX/docs/semantic
 OB_SEM=$SCRATCH/ob_sem
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-BRIDGE="$REPO_ROOT/core/cbm_bridge.py"
+BRIDGE="$REPO_ROOT/core/livedocs.py"
 CBM="${CBM:-$HOME/.local/bin/codebase-memory-mcp}"
 OB_DOCS="${OB_DOCS:-}"        # docs dir of a real, already-indexed project (optional)
 OB="${OB_PROJECT:-}"          # its codebase-memory-mcp project name

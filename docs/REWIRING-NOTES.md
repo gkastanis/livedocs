@@ -2,7 +2,7 @@
 
 This file lists work that is deliberately not being done yet. None of it is in
 scope right now. Today the repo is a faithful, byte-for-byte copy of the
-drupal-workflow 2.0.1 documentation feature, plus the generic bridge core.
+drupal-workflow 2.0.1 documentation feature, plus the generic core.
 Nothing below has been rewired.
 
 ## 1. Make drupal-workflow depend on this repo

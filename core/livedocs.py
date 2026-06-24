@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""cbm_bridge.py — bind curated doc "Logic IDs" to codebase-memory graph nodes.
+"""livedocs.py — bind curated doc "Logic IDs" to codebase-memory graph nodes.
 
-Generic bridge core: anchors each Logic ID (parsed from a doc adapter's
+Generic core: anchors each Logic ID (parsed from a doc adapter's
 Logic-to-Code tables) to a graph node by qualified_name, captures a self-owned
 content_hash (+ the graph's optional fp/signature), and later detects drift.
 Language- and doc-format-agnostic; the Drupal doc generators live in an adapter.

@@ -1,6 +1,6 @@
-# core: the generic bridge
+# core: the generic engine
 
-`cbm_bridge.py` is the part of the tool that matches documentation to code and
+`livedocs.py` is the part of the tool that matches documentation to code and
 detects drift. It has no Drupal in it and does not depend on what language the
 codebase is written in. The Drupal documentation generators live separately in
 `../adapters/drupal/`. To support a different documentation format, write an
@@ -91,9 +91,9 @@ next to your docs; it is meant to be committed to git.
 ## Commands
 
 ```
-cbm_bridge anchor <docs> <project>             find the node for each Logic ID, write .anchors.json
-cbm_bridge check  <docs> <project>             report drift; exit 1 if any anchor is stale
-cbm_bridge enrich <docs> <project> <logic_id>  print the live call graph for one Logic ID
+livedocs anchor <docs> <project>             find the node for each Logic ID, write .anchors.json
+livedocs check  <docs> <project>             report drift; exit 1 if any anchor is stale
+livedocs enrich <docs> <project> <logic_id>  print the live call graph for one Logic ID
 ```
 
 codebase-memory-mcp: https://github.com/DeusData/codebase-memory-mcp

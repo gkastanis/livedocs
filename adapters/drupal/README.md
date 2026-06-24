@@ -1,7 +1,7 @@
 # Drupal adapter
 
 These are the Drupal-specific files that produce the documentation the generic
-bridge in `core/` reads. They turn a Drupal project's service files, hooks,
+livedocs core in `core/` reads. They turn a Drupal project's service files, hooks,
 plugins, routes, and entities into the Markdown that the core matches against the
 code graph.
 

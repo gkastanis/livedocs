@@ -1,32 +1,35 @@
-# semantic-graph-bridge
+# livedocs
 
-This tool checks whether written documentation about a codebase still matches
-the code it describes. When the code that a piece of documentation points to has
-changed or been deleted, the tool flags that documentation as out of date. That
-way nobody has to hunt for stale docs by hand.
+Living documentation for codebases. livedocs generates documentation from your
+code, ties every statement to the exact function or class it describes, and
+keeps checking that the documentation still matches. When the code changes, it
+tells you which docs went stale, so they never quietly rot.
 
 ## The problem it solves
 
 Teams that document their code well hit the same problem over and over: the docs
 go out of date and nobody notices. A function gets rewritten, renamed, or
 deleted, but the paragraph that explains it stays the same. Readers keep
-trusting documentation that is now wrong.
+trusting documentation that is now wrong. livedocs ties every documented
+statement to the code it describes, so a single command tells you which
+statements no longer hold.
 
-This tool sits between two things you already have:
+## How it works
 
-1. A code knowledge graph. This is a database of every function, class, and
-   method in a codebase, and how they connect. It is built automatically by a
-   separate program called codebase-memory-mcp (see the link at the bottom). It
-   stays current because it is rebuilt from the code itself, but it only knows
-   the shape of the code, not what any of it is for.
-2. Written documentation. These are Markdown files that explain what each
-   feature does and which method implements it. They capture meaning and intent,
-   but they are written once and then slowly drift away from the code.
+livedocs has two parts. An adapter reads your codebase and writes the
+documentation as Markdown. The core then links each documented item to the real
+code and watches for drift.
 
-semantic-graph-bridge connects the two. It reads the documentation, finds the
-real code each documented item points to, and records a fingerprint of that
-code. Later it checks again. If the code has changed, moved, or disappeared, it
-tells you exactly which documented items are now stale.
+To locate and track code, the core uses a code knowledge graph: a database of
+every function, class, and method in the codebase, and how they connect, built
+and kept current by a separate program called codebase-memory-mcp (see Install).
+The graph always reflects the current code; the documentation is what drifts. So
+livedocs anchors each documented item to the graph, records a fingerprint of the
+code, and later reports when the two no longer agree.
+
+The core is generic and does not depend on any language or framework. Today
+there is one adapter, for Drupal. Because the core does not depend on it,
+adapters for other frameworks can be added the same way.
 
 ## Words used in this project
 
@@ -54,15 +57,15 @@ that codebase.
 ```bash
 # 1. anchor: for every Logic ID, find the code it points to, record a
 #    fingerprint, and write the sidecar (<docs>/.anchors.json).
-cbm_bridge anchor docs/semantic my-project
+livedocs anchor docs/semantic my-project
 
 # 2. check: look up each anchored Logic ID again and compare. Print any that
 #    changed, moved, or vanished. Exit code is 0 when everything matches and 1
 #    when anything is stale, so you can use it as a pre-push or CI gate.
-cbm_bridge check docs/semantic my-project
+livedocs check docs/semantic my-project
 
 # 3. enrich: show the live call graph around the code for one Logic ID.
-cbm_bridge enrich docs/semantic my-project REG-L1
+livedocs enrich docs/semantic my-project REG-L1
 ```
 
 `check` prints the exact Logic IDs that are stale. You can feed that list into
@@ -78,7 +81,7 @@ described in `core/README.md`.
 The code is split into two parts so that documentation formats other than
 Drupal's can be added later without touching the core.
 
-The core (`core/cbm_bridge.py`) is the part that does the matching and drift
+The core (`core/livedocs.py`) is the part that does the matching and drift
 detection. It has no Drupal in it and does not care what language the codebase is
 written in. It works for any documentation that produces the table format the
 core understands.
@@ -90,9 +93,9 @@ copied from an existing Claude Code plugin called drupal-workflow. It is one
 adapter; others could be written for other frameworks.
 
 ```
-semantic-graph-bridge/
+livedocs/
 ├── core/
-│   ├── cbm_bridge.py      # the matcher and drift detector: anchor, check, enrich
+│   ├── livedocs.py      # the matcher and drift detector: anchor, check, enrich
 │   └── README.md          # how the core works and the table format it reads
 ├── adapters/
 │   └── drupal/            # Drupal documentation generators (copied from drupal-workflow 2.0.1)
@@ -106,7 +109,7 @@ semantic-graph-bridge/
 │   └── README.md
 ├── docs/
 │   └── REWIRING-NOTES.md  # work left for later
-├── install.sh             # installs cbm_bridge and the adapter assets
+├── install.sh             # installs livedocs and the adapter assets
 └── LICENSE                # MIT
 ```
 
@@ -121,7 +124,7 @@ Run the installer from a local checkout:
 ./install.sh --uninstall
 ```
 
-The installer puts `core/cbm_bridge.py` on your PATH as `cbm_bridge`, makes sure
+The installer puts `core/livedocs.py` on your PATH as `livedocs`, makes sure
 codebase-memory-mcp is present (installing it if it is missing), and tells
 codebase-memory-mcp to index Drupal file types such as `.module` and `.install`,
 which it skips by default. On a machine that already has the drupal-workflow

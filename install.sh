@@ -43,6 +43,9 @@ ADAPTER_SCRIPTS_DIR="$ADAPTER_DIR/scripts"
 LIVEDOCS_SKILLS=(structural-index discover semantic-docs)
 # Slash-commands we manage (installed into the agent's commands/ dir).
 LIVEDOCS_COMMANDS=(drupal-semantic)
+# Generic, adapter-independent slash-commands shipped from the repo's commands/.
+GENERIC_COMMANDS_DIR="$REPO_DIR/commands"
+LIVEDOCS_GENERIC_COMMANDS=(livedocs-check)
 # Agent definitions we manage.
 LIVEDOCS_AGENTS=(semantic-architect)
 
@@ -545,6 +548,30 @@ if [ -d "$HOME/.claude" ] || [ -f "$HOME/.claude.json" ]; then
         warn "  command '$cmd' missing in adapter ($src); skipped."
         continue
       fi
+      if [ "$DRY" -eq 1 ]; then
+        info "  would install command: $cmd -> $dest"
+        continue
+      fi
+      tmp="$(mktemp)"
+      { printf '%s\n' "$FILE_TAG"; cat "$src"; } >"$tmp"
+      if [ "$FORCE" -eq 0 ] && [ -f "$dest" ] && cmp -s "$tmp" "$dest"; then
+        info "  command '$cmd' already up to date."
+        rm -f "$tmp"
+        continue
+      fi
+      mkdir -p "$(dirname "$dest")"
+      cat "$tmp" >"$dest"; rm -f "$tmp"
+      CHANGED=1
+      info "  installed command: $cmd"
+    done
+  fi
+
+  # Generic (adapter-independent) slash-commands, tagged the same way.
+  if [ -d "$GENERIC_COMMANDS_DIR" ]; then
+    for cmd in "${LIVEDOCS_GENERIC_COMMANDS[@]}"; do
+      src="$GENERIC_COMMANDS_DIR/$cmd.md"
+      dest="$CLAUDE_COMMANDS/$cmd.md"
+      [ -f "$src" ] || { warn "  command '$cmd' missing ($src); skipped."; continue; }
       if [ "$DRY" -eq 1 ]; then
         info "  would install command: $cmd -> $dest"
         continue

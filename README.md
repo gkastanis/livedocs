@@ -152,33 +152,40 @@ To create the docs the first time:
 3. `livedocs anchor docs/semantic my-project` records which code each Logic ID
    points to and writes the sidecar.
 
-After that, keeping the docs honest is one command, run whenever you have made
-changes:
+After that, keeping the docs honest is one step. From inside your coding agent,
+run the slash command:
+
+```
+/livedocs-check
+```
+
+It runs the drift check, and if anything drifted it lists the stale Logic IDs,
+regenerates only the affected tech specs with the semantic-architect agent, and
+refreshes the sidecar. Running it inside the agent is also when the code graph is
+current (the auto-index watcher is live in that session) and when the
+regeneration step can run. The installer adds this command to your agent.
+
+The same check is also a plain command, for scripts and CI:
 
 ```bash
 livedocs check docs/semantic my-project   # exit 0 = docs match, 1 = something drifted
 ```
 
-`check` prints the exact Logic IDs whose code changed, moved, or vanished. For
-each feature it flags, re-run the semantic-architect agent (existing Logic IDs
-are preserved) and `livedocs anchor` again. So you redo only the parts that
-actually drifted, not the whole doc set. To look at one Logic ID,
-`livedocs enrich docs/semantic my-project ORD-L1` prints the live call graph
-around its code.
-
-In a headless setting (CI, or a pre-push hook) there is no coding-agent session,
-so the background watcher is not running and the stored graph may be behind. Index
-once before checking:
+`check` prints the exact Logic IDs whose code changed, moved, or vanished. In a
+headless setting (CI, or a pre-push hook) there is no coding-agent session, so the
+background watcher is not running and the stored graph may be behind. Index once
+before checking:
 
 ```bash
 codebase-memory-mcp cli index_repository '{"repo_path":"."}'
 livedocs check docs/semantic my-project
 ```
 
-Each command takes the documentation directory and then the codebase-memory-mcp
-project name. The documentation directory must contain a `tech/` folder of
-Markdown files with the table shown above. The exact format the core reads is in
-`core/README.md`.
+To look at one Logic ID, `livedocs enrich docs/semantic my-project ORD-L1` prints
+the live call graph around its code. Each command takes the documentation
+directory and then the codebase-memory-mcp project name. The documentation
+directory must contain a `tech/` folder of Markdown files with the table shown
+above. The exact format the core reads is in `core/README.md`.
 
 ## What this repo contains
 
@@ -201,6 +208,8 @@ livedocs/
 ├── core/
 │   ├── livedocs.py      # the matcher and drift detector: anchor, check, enrich
 │   └── README.md          # how the core works and the table format it reads
+├── commands/
+│   └── livedocs-check.md  # the /livedocs-check slash command (check + regenerate)
 ├── adapters/
 │   └── drupal/            # Drupal documentation generators (copied from drupal-workflow 2.0.1)
 │       ├── agents/        # the agent that writes the intent docs

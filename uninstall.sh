@@ -27,7 +27,7 @@ done
 REPO_DIR="$(cd -P "$(dirname "$LIVEDOCS_SELF")" >/dev/null 2>&1 && pwd)"
 
 LIVEDOCS_SKILLS=(structural-index discover semantic-docs)
-LIVEDOCS_COMMANDS=(drupal-semantic)
+LIVEDOCS_COMMANDS=(drupal-semantic livedocs-check)
 LIVEDOCS_AGENTS=(semantic-architect)
 
 RC_START="# >>> livedocs >>>"

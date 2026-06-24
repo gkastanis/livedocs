@@ -168,7 +168,7 @@ write_file() {
 
 finish_dry() {
   if [ "$DRY" -eq 1 ]; then
-    printf '\n(dry-run — no files were modified)\n'
+    printf '\n(dry-run: no files were modified)\n'
     exit 0
   fi
 }
@@ -539,13 +539,13 @@ fi
 
 # --- Other agents: detected-but-not-yet-supported no-ops ---
 if [ -d "$HOME/.codex" ] || [ -f "$HOME/.codex.json" ]; then
-  info "Codex: detected — not yet supported (no-op)."
+  info "Codex: detected, not yet supported (no-op)."
 fi
 if [ -d "$HOME/.gemini" ] || [ -f "$HOME/.config/gemini" ]; then
-  info "Gemini: detected — not yet supported (no-op)."
+  info "Gemini: detected, not yet supported (no-op)."
 fi
 if [ -d "$HOME/.config/zed" ] || [ -d "$HOME/.zed" ]; then
-  info "Zed: detected — not yet supported (no-op)."
+  info "Zed: detected, not yet supported (no-op)."
 fi
 
 # ---------------------------------------------------------------------------

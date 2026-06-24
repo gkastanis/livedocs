@@ -248,7 +248,7 @@ info "Left untouched: codebase-memory-mcp, its indexes, and any .anchors.json si
 
 echo
 if [ "$DRY" -eq 1 ]; then
-  echo "(dry-run — no files were modified)"
+  echo "(dry-run: no files were modified)"
 else
   echo "Uninstall complete."
 fi

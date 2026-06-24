@@ -1,0 +1,246 @@
+#!/bin/bash
+# generate-feature-map.sh - Build feature map from tech specs + structural data
+# Output: docs/semantic/FEATURE_MAP.md
+# Reads tech specs to derive feature codes, counts structural artifacts per feature.
+set -e
+
+PROJECT_DIR="${1:-${CLAUDE_PROJECT_DIR:-$(pwd)}}"
+DOCS_DIR="$PROJECT_DIR/docs/semantic"
+STRUCTURAL_DIR="$DOCS_DIR/structural"
+TECH_DIR="$DOCS_DIR/tech"
+OUTPUT="$DOCS_DIR/FEATURE_MAP.md"
+
+PROJECT_NAME=$(basename "$PROJECT_DIR" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
+
+SERVICES_MD="$STRUCTURAL_DIR/services.md"
+HOOKS_MD="$STRUCTURAL_DIR/hooks.md"
+ROUTES_MD="$STRUCTURAL_DIR/routes.md"
+PLUGINS_MD="$STRUCTURAL_DIR/plugins.md"
+ENTITIES_MD="$STRUCTURAL_DIR/entities.md"
+
+# Count features
+FEATURE_COUNT=0
+if [[ -d "$TECH_DIR" ]]; then
+    FEATURE_COUNT=$(ls "$TECH_DIR"/*.md 2>/dev/null | wc -l)
+fi
+
+cat > "$OUTPUT" << HEADER
+# Feature Map
+Generated: $(date +%Y-%m-%d) | Project: $PROJECT_NAME | Features: $FEATURE_COUNT
+
+HEADER
+
+if [[ ! -d "$TECH_DIR" ]] || [[ "$FEATURE_COUNT" -eq 0 ]]; then
+    echo "_No tech specs found in $TECH_DIR. Generate semantic docs first._" >> "$OUTPUT"
+    echo "  FEATURE_MAP.md generated (no tech specs found)"
+    exit 0
+fi
+
+# Main feature table
+echo "| Code | Name | Services | Hooks | Routes | Plugins | Entities | Hotspots | Spec |" >> "$OUTPUT"
+echo "|------|------|----------|-------|--------|---------|----------|----------|------|" >> "$OUTPUT"
+
+# Build list of known module names from the structural index.
+# Each table has a "Module" column — find it by header name, not hardcoded position.
+# This prevents silent column mismatch bugs when generators add/remove columns.
+KNOWN_MODULES=()
+find_col_index() {
+    local file="$1" col_name="$2"
+    [[ -f "$file" ]] || { echo 0; return; }
+    grep '^|' "$file" 2>/dev/null | head -1 | awk -F'|' -v name="$col_name" '{
+        for(i=1; i<=NF; i++) {
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", $i)
+            if ($i == name) { print i; exit }
+        }
+        print 0
+    }'
+}
+extract_module_col() {
+    local file="$1"
+    [[ -f "$file" ]] || return
+    local col
+    col=$(find_col_index "$file" "Module")
+    [[ "$col" -eq 0 || "$col" == "0" ]] && return
+    grep '^|' "$file" 2>/dev/null | tail -n +3 | awk -F'|' -v c="$col" '{print $c}' | \
+        sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//' | sort -u
+}
+for km in $(extract_module_col "$SERVICES_MD") \
+          $(extract_module_col "$HOOKS_MD") \
+          $(extract_module_col "$ROUTES_MD") \
+          $(extract_module_col "$PLUGINS_MD") \
+          $(extract_module_col "$ENTITIES_MD"); do
+    if [[ -n "$km" && "$km" != "-" ]] && ! printf '%s\n' "${KNOWN_MODULES[@]}" | grep -qxF "$km" 2>/dev/null; then
+        KNOWN_MODULES+=("$km")
+    fi
+done
+
+# Track all modules referenced per feature for hotspot detection
+declare -A MODULE_FEATURE_MAP
+
+# Pre-scan: detect "infrastructure" modules referenced by >50% of features.
+# These inflate per-feature counts identically and should be excluded from artifact counting
+# (but still shown in cross-cutting concerns).
+declare -A MODULE_REF_COUNT
+declare -A INFRA_MODULES
+for tech_file in "$TECH_DIR"/*.md; do
+    [[ -f "$tech_file" ]] || continue
+    for km in "${KNOWN_MODULES[@]}"; do
+        if grep -qF "$km" "$tech_file" 2>/dev/null; then
+            MODULE_REF_COUNT[$km]=$(( ${MODULE_REF_COUNT[$km]:-0} + 1 ))
+        fi
+    done
+done
+HALF_FEATURES=$(( FEATURE_COUNT / 2 ))
+for km in "${!MODULE_REF_COUNT[@]}"; do
+    if [[ ${MODULE_REF_COUNT[$km]} -gt $HALF_FEATURES ]]; then
+        INFRA_MODULES[$km]=1
+    fi
+done
+
+for tech_file in "$TECH_DIR"/*.md; do
+    [[ -f "$tech_file" ]] || continue
+
+    SPEC_NAME=$(basename "$tech_file" .md)
+    FEATURE_CODE=$(echo "$SPEC_NAME" | sed 's/_[0-9]*_.*$//' | sed 's/-[0-9]*-.*$//' | tr '[:lower:]' '[:upper:]')
+    FEATURE_NAME=$(echo "$SPEC_NAME" | sed 's/^[A-Z]*_[0-9]*_//' | sed 's/^[a-z]*-[0-9]*-//' | tr '_-' ' ')
+
+    # Find modules associated with this feature
+    # Strategy 1: Match known module names from structural index against tech spec text
+    FEATURE_MODULES=()
+    if [[ ${#KNOWN_MODULES[@]} -gt 0 ]]; then
+        for km in "${KNOWN_MODULES[@]}"; do
+            if grep -qF "$km" "$tech_file" 2>/dev/null; then
+                FEATURE_MODULES+=("$km")
+            fi
+        done
+    fi
+
+    # Strategy 2: Look for explicit module references with _module suffix
+    while IFS= read -r mod; do
+        mod=$(echo "$mod" | sed 's/[[:space:]]*$//')
+        if [[ -n "$mod" ]] && ! printf '%s\n' "${FEATURE_MODULES[@]}" | grep -qxF "$mod"; then
+            FEATURE_MODULES+=("$mod")
+        fi
+    done < <(grep -oE '[a-z][a-z_]+_module\b' "$tech_file" 2>/dev/null | sort -u)
+
+    # Track module-to-feature mapping for cross-cutting detection
+    # Deduplicate: multiple specs with the same feature code (e.g., SCHD_01, SCHD_02)
+    # should only appear once per module.
+    for mod in "${FEATURE_MODULES[@]}"; do
+        if [[ -n "${MODULE_FEATURE_MAP[$mod]}" ]]; then
+            # Check if this feature code is already listed for this module
+            if ! echo ", ${MODULE_FEATURE_MAP[$mod]}," | grep -qF ", $FEATURE_CODE,"; then
+                MODULE_FEATURE_MAP[$mod]="${MODULE_FEATURE_MAP[$mod]}, $FEATURE_CODE"
+            fi
+        else
+            MODULE_FEATURE_MAP[$mod]="$FEATURE_CODE"
+        fi
+    done
+
+    # Count structural artifacts matching this feature's modules.
+    # Exclude "infrastructure" modules referenced by >50% of features —
+    # they inflate counts identically across features, making the table useless.
+    SVC_COUNT=0
+    HOOK_COUNT=0
+    ROUTE_COUNT=0
+    PLUGIN_COUNT=0
+    ENTITY_COUNT=0
+
+    for mod in "${FEATURE_MODULES[@]}"; do
+        # Skip modules that appear in most features (counted separately in cross-cutting)
+        if [[ -n "${INFRA_MODULES[$mod]+x}" ]]; then
+            continue
+        fi
+        if [[ -f "$SERVICES_MD" ]]; then
+            n=$(grep -cF "| $mod |" "$SERVICES_MD" 2>/dev/null) || true; SVC_COUNT=$((SVC_COUNT + ${n:-0}))
+        fi
+        if [[ -f "$HOOKS_MD" ]]; then
+            n=$(grep -cF "| $mod |" "$HOOKS_MD" 2>/dev/null) || true; HOOK_COUNT=$((HOOK_COUNT + ${n:-0}))
+        fi
+        if [[ -f "$ROUTES_MD" ]]; then
+            n=$(grep -cF "| $mod |" "$ROUTES_MD" 2>/dev/null) || true; ROUTE_COUNT=$((ROUTE_COUNT + ${n:-0}))
+        fi
+        if [[ -f "$PLUGINS_MD" ]]; then
+            n=$(grep -cF "| $mod |" "$PLUGINS_MD" 2>/dev/null) || true; PLUGIN_COUNT=$((PLUGIN_COUNT + ${n:-0}))
+        fi
+        if [[ -f "$ENTITIES_MD" ]]; then
+            n=$(grep -cF "| $mod |" "$ENTITIES_MD" 2>/dev/null) || true; ENTITY_COUNT=$((ENTITY_COUNT + ${n:-0}))
+        fi
+    done
+
+    # Hotspot: count how many structural artifacts total
+    HOTSPOT_SCORE=$((SVC_COUNT + HOOK_COUNT + ROUTE_COUNT + PLUGIN_COUNT + ENTITY_COUNT))
+    if [[ "$HOTSPOT_SCORE" -gt 10 ]]; then
+        HOTSPOT="HIGH"
+    elif [[ "$HOTSPOT_SCORE" -gt 5 ]]; then
+        HOTSPOT="MED"
+    elif [[ "$HOTSPOT_SCORE" -gt 0 ]]; then
+        HOTSPOT="LOW"
+    else
+        HOTSPOT="-"
+    fi
+
+    echo "| $FEATURE_CODE | $FEATURE_NAME | $SVC_COUNT | $HOOK_COUNT | $ROUTE_COUNT | $PLUGIN_COUNT | $ENTITY_COUNT | $HOTSPOT | \`$SPEC_NAME\` |" >> "$OUTPUT"
+done
+
+echo "" >> "$OUTPUT"
+
+# Cross-Cutting Concerns
+echo "## Cross-Cutting Concerns" >> "$OUTPUT"
+echo "" >> "$OUTPUT"
+echo "Modules/services shared across multiple features:" >> "$OUTPUT"
+echo "" >> "$OUTPUT"
+
+CROSS_CUTTING=0
+for mod in "${!MODULE_FEATURE_MAP[@]}"; do
+    FEATURES="${MODULE_FEATURE_MAP[$mod]}"
+    # Count commas to determine number of features
+    COMMA_COUNT=$(echo "$FEATURES" | tr -cd ',' | wc -c)
+    if [[ "$COMMA_COUNT" -gt 0 ]]; then
+        echo "- **\`$mod\`**: $FEATURES" >> "$OUTPUT"
+        ((CROSS_CUTTING++)) || true
+    fi
+done
+
+if [[ "$CROSS_CUTTING" -eq 0 ]]; then
+    echo "_No cross-cutting modules detected._" >> "$OUTPUT"
+fi
+echo "" >> "$OUTPUT"
+
+# List infrastructure modules excluded from per-feature counts
+if [[ ${#INFRA_MODULES[@]} -gt 0 ]]; then
+    echo "**Infrastructure modules** (excluded from per-feature counts, referenced by >50% of features):" >> "$OUTPUT"
+    for km in "${!INFRA_MODULES[@]}"; do
+        echo "- \`$km\` (${MODULE_REF_COUNT[$km]}/$FEATURE_COUNT features)" >> "$OUTPUT"
+    done
+    echo "" >> "$OUTPUT"
+fi
+
+# Staleness Section
+echo "## Staleness" >> "$OUTPUT"
+echo "" >> "$OUTPUT"
+
+if [[ -f "$STRUCTURAL_DIR/.generated-at" ]]; then
+    GEN_TIME=$(cat "$STRUCTURAL_DIR/.generated-at")
+    echo "Last generated: $GEN_TIME" >> "$OUTPUT"
+    echo "" >> "$OUTPUT"
+
+    STALE_COUNT=$(find -L "$PROJECT_DIR" -newer "$STRUCTURAL_DIR/.generated-at" \
+        \( -name "*.services.yml" -o -name "*.routing.yml" -o -name "*.module" -o -name "*.php" \) \
+        2>/dev/null | wc -l)
+
+    if [[ "$STALE_COUNT" -gt 0 ]]; then
+        echo "**WARNING**: $STALE_COUNT source files modified since last generation." >> "$OUTPUT"
+        echo "Run \`/structural-index\` to regenerate." >> "$OUTPUT"
+    else
+        echo "Index is up to date." >> "$OUTPUT"
+    fi
+else
+    echo "_No generation timestamp found._" >> "$OUTPUT"
+fi
+echo "" >> "$OUTPUT"
+
+echo "---" >> "$OUTPUT"
+echo "_Feature map generated from tech specs and structural index._" >> "$OUTPUT"
+
+echo "  FEATURE_MAP.md generated ($FEATURE_COUNT features)"

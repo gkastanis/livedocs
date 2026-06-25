@@ -1,0 +1,32 @@
+judged G alloc_1: coverage=0
+judged GG alloc_1: coverage=0.4
+judged L alloc_1: coverage=0.2
+judged G alloc_2: coverage=0.6
+judged GG alloc_2: coverage=1
+judged L alloc_2: coverage=1
+judged G avail_1: coverage=1
+judged GG avail_1: coverage=0.5
+judged L avail_1: coverage=1
+judged G avail_2: coverage=0.75
+judged GG avail_2: coverage=1
+judged L avail_2: coverage=1
+judged G mig_1: coverage=1
+judged GG mig_1: coverage=1
+judged L mig_1: coverage=1
+judged G mig_2: coverage=1
+judged GG mig_2: coverage=1
+judged L mig_2: coverage=1
+
+==== CODEX JUDGE: context-completeness ====
+task      |      G     GG      L   (coverage)
+alloc_1   |   0.00   0.40   0.20
+alloc_2   |   0.60   1.00   1.00
+avail_1   |   1.00   0.50   1.00
+avail_2   |   0.75   1.00   1.00
+mig_1     |   1.00   1.00   1.00
+mig_2     |   1.00   1.00   1.00
+----------------------------------------
+ARM G: codex coverage=72%  discriminator=75%  (n=6)
+ARM GG: codex coverage=82%  discriminator=83%  (n=6)
+ARM L: codex coverage=87%  discriminator=83%  (n=6)
+saved -> codex_verdicts.json

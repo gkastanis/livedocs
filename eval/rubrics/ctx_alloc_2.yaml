@@ -1,0 +1,62 @@
+# yaml-language-server: $schema=https://git.drupalcode.org/project/ai_eval/-/raw/1.0.x/schema/rubric.schema.json
+id: ctx_alloc_2
+version: '1.0'
+description: Context-completeness for change task alloc_2
+applicable_bundles:
+- code_navigation
+checks:
+- id: seat_time_entity
+  kind: must_contain_any
+  case_sensitive: false
+  values:
+  - SeatTime
+  metadata:
+    discriminator: false
+- id: delta_field
+  kind: must_contain_any
+  case_sensitive: false
+  values:
+  - field_delta
+  - delta
+  metadata:
+    discriminator: false
+- id: save_path
+  kind: must_contain_any
+  case_sensitive: false
+  values:
+  - saveSeatTime
+  - assignSeatTime
+  - SessionAllocationParticipantAssignAction
+  - AssignParticipantToSessionSlotsForm
+  metadata:
+    discriminator: false
+- id: available_compute
+  kind: must_contain_any
+  case_sensitive: false
+  values:
+  - getAvailableSeatTimeOptions
+  - SeatTimeStorage
+  metadata:
+    discriminator: true
+- id: priority_rule
+  kind: must_contain_any
+  case_sensitive: false
+  values:
+  - priority
+  - field_is_priority_shift
+  - 30 min
+  - 15 min
+  - 30-min
+  - 15-min
+  - 30/15
+  metadata:
+    discriminator: true
+scoring:
+  combine: weighted_avg
+  weights:
+    seat_time_entity: 1.0
+    delta_field: 1.0
+    save_path: 1.0
+    available_compute: 2.0
+    priority_rule: 2.0
+  threshold: 0.6

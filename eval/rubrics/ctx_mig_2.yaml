@@ -1,0 +1,58 @@
+# yaml-language-server: $schema=https://git.drupalcode.org/project/ai_eval/-/raw/1.0.x/schema/rubric.schema.json
+id: ctx_mig_2
+version: '1.0'
+description: Context-completeness for change task mig_2
+applicable_bundles:
+- code_navigation
+checks:
+- id: subscriber
+  kind: must_contain_any
+  case_sensitive: false
+  values:
+  - PostMigrationSubscriber
+  metadata:
+    discriminator: false
+- id: post_import_event
+  kind: must_contain_any
+  case_sensitive: false
+  values:
+  - POST_IMPORT
+  - MigrateEvents
+  - event subscriber
+  - getSubscribedEvents
+  metadata:
+    discriminator: true
+- id: create_method
+  kind: must_contain_any
+  case_sensitive: false
+  values:
+  - createProducts
+  metadata:
+    discriminator: false
+- id: per_level_pattern
+  kind: must_contain_any
+  case_sensitive: false
+  values:
+  - T2
+  - T3
+  - session level
+  - Acme-CERT
+  metadata:
+    discriminator: true
+- id: attach_variations
+  kind: must_contain_any
+  case_sensitive: false
+  values:
+  - variation
+  - variations field
+  metadata:
+    discriminator: false
+scoring:
+  combine: weighted_avg
+  weights:
+    subscriber: 1.0
+    post_import_event: 2.0
+    create_method: 1.0
+    per_level_pattern: 2.0
+    attach_variations: 1.0
+  threshold: 0.6

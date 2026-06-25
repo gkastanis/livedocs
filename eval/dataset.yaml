@@ -1,0 +1,173 @@
+# yaml-language-server: $schema=https://git.drupalcode.org/project/ai_eval/-/raw/1.0.x/schema/dataset.schema.json
+#
+# livedocs value eval: code-navigation tasks.
+# Symbols are PSEUDONYMS of a private testbed (consistently renamed; numbers and
+# reasoning preserved). A worked example of the schema + method, not a runnable
+# suite: the testbed it targets is not public.
+#
+# Each case is a grep-hostile coding-localization task. Gold (the file+symbol that
+# must be named) was derived by reading CODE only, never the docs, so doc quality
+# cannot bias the gold. metadata.doc_coverage + metadata.prediction are
+# pre-registered BEFORE running: C should beat A where docs cover the gold, and
+# tie where docs are silent.
+#
+# Dimensions: feature x task_type x findability (the failure-prone axis).
+questions:
+  - id: alloc_1
+    bundle: code_navigation
+    input: >-
+      In this Drupal project, instructors need to see their assigned session schedule
+      rendered as a human-readable table grouped by date (venue, co-instructor
+      contact, coordinator), shown on the instructor profile once the schedule is
+      released. Point me to the exact file(s) and method(s) I would change to
+      adjust how that table is built and where it is attached to the profile.
+    criteria: >-
+      Names InstructorManager::displaySessionSchedule (and/or the row builder
+      instructorScheduleTableMarkup) AND the acme_alloc_entity_view hook that
+      attaches it. Correct = both the builder method and the attach hook.
+    tags: [feature:alloc, type:locate, find:both]
+    metadata:
+      feature: Allocation
+      task_type: locate
+      findability: both
+      doc_coverage: covered
+      prediction: "C > A (ALLOC_01 documents displaySessionSchedule)"
+      gold_files:
+        - web/modules/custom/acme_alloc/src/InstructorManager.php
+        - web/modules/custom/acme_alloc/acme_alloc.module
+      gold_symbols:
+        - "InstructorManager::displaySessionSchedule"
+        - "InstructorManager::instructorScheduleTableMarkup"
+        - "acme_alloc_entity_view"
+      why_hard: "concept 'schedule table' is split across a builder method, a protected row helper, and an entity-view hook"
+
+  - id: alloc_2
+    bundle: code_navigation
+    input: >-
+      When a participant is assigned to a specific position within an seat session
+      slot that has several time positions, the system records which position
+      (the delta) that participant holds, and the available positions depend on
+      whether a priority shift applies. Where is the position recorded when the
+      assignment is saved, and where are the available positions computed?
+    criteria: >-
+      Names the SeatTime entity, the save path that persists field_delta
+      (saveSeatTime in SessionAllocationParticipantAssignAction), AND
+      SeatTimeStorage::getAvailableSeatTimeOptions. Correct = entity + save + compute.
+    tags: [feature:alloc, type:trace, find:both]
+    metadata:
+      feature: Allocation
+      task_type: trace
+      findability: both
+      doc_coverage: partial
+      prediction: "C >= A (SeatTime documented under PREP_01, saveSeatTime only in structural methods.md, scattered)"
+      gold_files:
+        - web/modules/custom/acme_alloc/src/Entity/SeatTime.php
+        - web/modules/custom/acme_alloc/src/Plugin/Action/SessionAllocationParticipantAssignAction.php
+        - web/modules/custom/acme_alloc/src/SeatTimeStorage.php
+      gold_symbols:
+        - "SeatTime"
+        - "SessionAllocationParticipantAssignAction::saveSeatTime"
+        - "SeatTimeStorage::getAvailableSeatTimeOptions"
+      why_hard: "concept 'position delta in a slot' maps to a separate entity (SeatTime) and the save lives in an Action plugin, not a form"
+
+  - id: avail_1
+    bundle: code_navigation
+    input: >-
+      Saving an instructor's availability for an session period must not create a
+      second availability record for the same instructor and the same session period;
+      if one already exists the user should get a message linking to it. Where is
+      that uniqueness enforced, and how is the existing record looked up?
+    criteria: >-
+      Names AvailabilityCalendarUniqueConstraint + its Validator (validate) AND
+      the storage lookup getByUserAndSessionPeriod. Correct = the validation
+      constraint mechanism (not a DB unique key) + the lookup method.
+    tags: [feature:avail, type:locate, find:both]
+    metadata:
+      feature: AvailabilityCalendar
+      task_type: locate
+      findability: both
+      doc_coverage: covered
+      prediction: "C > A (AVAIL_01 documents the constraint and getByUserAndSessionPeriod)"
+      gold_files:
+        - web/modules/custom/acme_availability_calendar/src/Plugin/Validation/Constraint/AvailabilityCalendarUniqueConstraint.php
+        - web/modules/custom/acme_availability_calendar/src/Plugin/Validation/Constraint/AvailabilityCalendarUniqueConstraintValidator.php
+      gold_symbols:
+        - "AvailabilityCalendarUniqueConstraintValidator::validate"
+        - "AvailabilityCalendarUniqueConstraint"
+        - "getByUserAndSessionPeriod"
+      why_hard: "'prevent duplicates' is enforced via a Symfony validation constraint, not a DB constraint; lookup name is opaque"
+
+  - id: avail_2
+    bundle: code_navigation
+    input: >-
+      I need to change the form widget instructors use to pick their available
+      dates in an session period, specifically the rule that only lets them enter an
+      'earliest departure the day before' for certain session days (it should only
+      apply to Fridays). Where is the widget built and where is that day rule
+      defined?
+    criteria: >-
+      Names AvailabilityCalendarFieldDefaultWidget::formElement AND the
+      DEPARTURE_TIME_ALLOWED_DAYS constant (in AvailabilityCalendarFieldItemInterface)
+      that restricts to day 5. Correct = widget builder + the day-rule constant.
+    tags: [feature:avail, type:modify, find:both]
+    metadata:
+      feature: AvailabilityCalendar
+      task_type: modify
+      findability: both
+      doc_coverage: silent
+      prediction: "C ~= A (DEPARTURE_TIME_ALLOWED_DAYS is NOT in the docs, control case where docs should not help)"
+      gold_files:
+        - web/modules/custom/acme_availability_calendar/src/Plugin/Field/FieldWidget/AvailabilityCalendarFieldDefaultWidget.php
+        - web/modules/custom/acme_availability_calendar/src/AvailabilityCalendarFieldItemInterface.php
+      gold_symbols:
+        - "AvailabilityCalendarFieldDefaultWidget::formElement"
+        - "DEPARTURE_TIME_ALLOWED_DAYS"
+      why_hard: "the Friday-only rule is a constant in the field-item interface, far from the widget that consumes it; doc-silent"
+
+  - id: mig_1
+    bundle: code_navigation
+    input: >-
+      A Drupal 7 to 11 migration imports commerce payment transactions from two
+      gateways (Stripe and Paypal). Their raw payloads are in different formats
+      and need normalizing (reference numbers, dates to timestamps) before the
+      row is migrated. Where does that per-row normalization happen?
+    criteria: >-
+      Names AcmePaymentTransaction::prepareRow (migrate source plugin). Correct =
+      the prepareRow method on the payment-transaction source plugin.
+    tags: [feature:migr, type:locate, find:name-opaque]
+    metadata:
+      feature: Migration
+      task_type: locate
+      findability: name-opaque
+      doc_coverage: covered
+      prediction: "C > A (MIGR_01 names AcmePaymentTransaction.prepareRow; 'payload normalize' != 'prepareRow')"
+      gold_files:
+        - web/modules/custom/acme_migrate/src/Plugin/migrate/source/AcmePaymentTransaction.php
+      gold_symbols:
+        - "AcmePaymentTransaction::prepareRow"
+      why_hard: "the concept 'gateway payload normalization' lives in a generically-named Migrate API hook (prepareRow)"
+
+  - id: mig_2
+    bundle: code_navigation
+    input: >-
+      After commerce product variations finish migrating, the project needs to
+      automatically create the parent product entities and attach the migrated
+      variations to them, with distinct products per session level (T2, T3). Where
+      is that post-migration step triggered and implemented?
+    criteria: >-
+      Names PostMigrationSubscriber::createProducts AND getSubscribedEvents
+      (MigrateEvents::POST_IMPORT). Correct = the event subscriber method + how it
+      subscribes to the post-import event.
+    tags: [feature:migr, type:trace, find:name-opaque]
+    metadata:
+      feature: Migration
+      task_type: trace
+      findability: name-opaque
+      doc_coverage: covered
+      prediction: "C > A (MIGR_01 documents PostMigrationSubscriber.createProducts; event-driven, no call-site to grep)"
+      gold_files:
+        - web/modules/custom/acme_migrate/src/EventSubscriber/PostMigrationSubscriber.php
+      gold_symbols:
+        - "PostMigrationSubscriber::createProducts"
+        - "PostMigrationSubscriber::getSubscribedEvents"
+      why_hard: "behavior is wired by an event subscriber (POST_IMPORT), so there is no direct caller to grep from the migration"

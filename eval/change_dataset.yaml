@@ -1,0 +1,88 @@
+# yaml-language-server: $schema=https://git.drupalcode.org/project/ai_eval/-/raw/1.0.x/schema/dataset.schema.json
+#
+# livedocs CONTEXT-QUALITY eval: downstream change-plan tasks.
+# Symbols are PSEUDONYMS of a private testbed (consistently renamed; numbers and
+# reasoning preserved). A worked example of the schema + method, not a runnable
+# suite: the testbed it targets is not public. To run it, point the arms at your
+# own repo and rewrite the gold.
+#
+# Metric is NOT "located the symbol" but "did the plan surface the load-bearing
+# CONTEXT a correct change depends on", the cross-file set + the intent/constraints
+# (gates, rules, abstractions) that grep cannot recover from code. Scored
+# deterministically per task by rubric/ctx_<id>@1.0 (must_contain_any checks).
+# The discriminating elements are weighted highest: the ones only the docs carry.
+questions:
+  - id: alloc_1
+    bundle: code_navigation
+    rubric_ref: "rubric/ctx_alloc_1@1.0"
+    input: >-
+      In this Drupal project, add a "room capacity" column to the instructor
+      session-schedule table shown on the instructor profile. Produce a CHANGE PLAN:
+      (1) every file and symbol you would modify; (2) every existing behavior or
+      constraint your change must preserve, in particular WHEN and to WHOM the
+      table is shown, and HOW/where it is attached to the profile; (3) risks.
+    metadata:
+      doc_coverage: covered
+      context_elements: [builder, row_helper, attach_hook, release_date_gate, coordinator_source]
+
+  - id: alloc_2
+    bundle: code_navigation
+    rubric_ref: "rubric/ctx_alloc_2@1.0"
+    input: >-
+      Add an audit-log entry whenever a participant's recorded position (delta) in
+      an seat session slot changes. Produce a CHANGE PLAN: (1) every file and symbol
+      you would modify; (2) every existing constraint about how the position is
+      recorded on save AND how the available positions are computed that you must
+      preserve; (3) risks.
+    metadata:
+      doc_coverage: partial
+      context_elements: [seat_time_entity, delta_field, save_path, available_compute, priority_rule]
+
+  - id: avail_1
+    bundle: code_navigation
+    rubric_ref: "rubric/ctx_avail_1@1.0"
+    input: >-
+      Change the duplicate-availability message so it also shows the session period
+      name. Produce a CHANGE PLAN: (1) every file and symbol you would modify;
+      (2) the existing uniqueness-enforcement mechanism and the existing-record
+      lookup you must preserve; (3) risks.
+    metadata:
+      doc_coverage: covered
+      context_elements: [constraint_mechanism, validator, lookup_method, links_to_existing]
+
+  - id: avail_2
+    bundle: code_navigation
+    rubric_ref: "rubric/ctx_avail_2@1.0"
+    input: >-
+      Change the "earliest departure the day before" rule so it applies to
+      Fridays instead of its current day. Produce a CHANGE PLAN: (1) every file
+      and symbol you would modify; (2) every place that day-rule is read or
+      enforced, and the rule's current value; (3) risks.
+    metadata:
+      doc_coverage: silent
+      context_elements: [widget, day_constant, current_value_insight, validator_also_reads]
+
+  - id: mig_1
+    bundle: code_navigation
+    rubric_ref: "rubric/ctx_mig_1@1.0"
+    input: >-
+      Add normalization for a third payment gateway alongside Stripe and Paypal
+      during the D7 to D11 commerce-payment migration. Produce a CHANGE PLAN:
+      (1) the file and symbol you would modify; (2) the existing per-gateway
+      normalization behavior you must follow (payload formats, date handling);
+      (3) risks.
+    metadata:
+      doc_coverage: covered
+      context_elements: [method, source_class, stripe_path, paypal_path, date_convert]
+
+  - id: mig_2
+    bundle: code_navigation
+    rubric_ref: "rubric/ctx_mig_2@1.0"
+    input: >-
+      Add a third session-level parent product (T1) to the post-migration product
+      creation. Produce a CHANGE PLAN: (1) the file and symbol you would modify;
+      (2) the existing post-migration trigger and the product/variation wiring
+      you must follow; (3) risks.
+    metadata:
+      doc_coverage: covered
+      context_elements: [subscriber, post_import_event, create_method, per_level_pattern, attach_variations]

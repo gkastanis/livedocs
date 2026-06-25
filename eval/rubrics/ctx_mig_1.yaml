@@ -1,0 +1,56 @@
+# yaml-language-server: $schema=https://git.drupalcode.org/project/ai_eval/-/raw/1.0.x/schema/rubric.schema.json
+id: ctx_mig_1
+version: '1.0'
+description: Context-completeness for change task mig_1
+applicable_bundles:
+- code_navigation
+checks:
+- id: method
+  kind: must_contain_any
+  case_sensitive: false
+  values:
+  - prepareRow
+  metadata:
+    discriminator: false
+- id: source_class
+  kind: must_contain_any
+  case_sensitive: false
+  values:
+  - AcmePaymentTransaction
+  metadata:
+    discriminator: false
+- id: stripe_path
+  kind: must_contain_any
+  case_sensitive: false
+  values:
+  - Stripe
+  - unserialize
+  metadata:
+    discriminator: true
+- id: paypal_path
+  kind: must_contain_any
+  case_sensitive: false
+  values:
+  - Paypal
+  - parse
+  metadata:
+    discriminator: true
+- id: date_convert
+  kind: must_contain_any
+  case_sensitive: false
+  values:
+  - timestamp
+  - DrupalDateTime
+  - date conversion
+  - to unix
+  metadata:
+    discriminator: false
+scoring:
+  combine: weighted_avg
+  weights:
+    method: 1.0
+    source_class: 1.0
+    stripe_path: 2.0
+    paypal_path: 2.0
+    date_convert: 1.0
+  threshold: 0.6

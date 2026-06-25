@@ -1,0 +1,530 @@
+{
+  "G|alloc_1": {
+    "coverage": 0,
+    "criteria": [
+      {
+        "id": "builder",
+        "met": false,
+        "evidence": "Not surfaced. The plan names InstructorProfileController and Views YAML, but does not identify displaySessionSchedule or any equivalent schedule-table builder."
+      },
+      {
+        "id": "row_helper",
+        "met": false,
+        "evidence": "Not surfaced. No mention of instructorScheduleTableMarkup or a row/table helper; the plan assumes the table is driven by Views config."
+      },
+      {
+        "id": "attach_hook",
+        "met": false,
+        "evidence": "Not surfaced. The plan vaguely mentions templates/preprocess hooks, but does not name acme_alloc_entity_view, hook_entity_view, or entity_view attachment behavior."
+      },
+      {
+        "id": "release_date_gate",
+        "met": false,
+        "evidence": "Not surfaced. No mention of field_instructor_schedule_date, schedule release, release date gating, or any visibility/date constraint."
+      },
+      {
+        "id": "coordinator_source",
+        "met": false,
+        "evidence": "Not surfaced. No mention of getCoordinatorData, coordinator data, or a coordinator-derived source for schedule information."
+      }
+    ],
+    "disc_coverage": 0.0
+  },
+  "G|alloc_2": {
+    "coverage": 0.6,
+    "criteria": [
+      {
+        "id": "seat_time_entity",
+        "met": true,
+        "evidence": "Names `web/modules/custom/acme_alloc/src/Entity/SeatTime.php`, `SeatTime::preSave()`, and describes `SeatTime` entities."
+      },
+      {
+        "id": "delta_field",
+        "met": true,
+        "evidence": "Explicitly identifies `field_delta` as the participant position/delta and says it is read via `->get('field_delta')->value`."
+      },
+      {
+        "id": "save_path",
+        "met": false,
+        "evidence": "Mentions `SeatTimeForm::save()` and `SessionSlot::manageSeatTimes()`, but does not surface the expected save/assignment path symbols such as `saveSeatTime`, `assignSeatTime`, or `SessionAllocationParticipantAssignAction`."
+      },
+      {
+        "id": "available_compute",
+        "met": false,
+        "evidence": "Describes an inferred `SessionSlot::getFirstAvailableSeatTimeDelta()` algorithm, but does not name or use the expected available-position computation context such as `getAvailableSeatTimeOptions` or `SeatTimeStorage`."
+      },
+      {
+        "id": "priority_rule",
+        "met": true,
+        "evidence": "Correctly notes duration depends on `field_is_priority_shift` and says priority shifts use 30 minutes versus 15 minutes."
+      }
+    ],
+    "disc_coverage": 0.5
+  },
+  "G|avail_1": {
+    "coverage": 1,
+    "criteria": [
+      {
+        "id": "constraint_mechanism",
+        "met": true,
+        "evidence": "Names `AvailabilityCalendarUniqueConstraint.php`, property `AvailabilityCalendarUniqueConstraint::$message`, and describes the validation constraint preserving uniqueness enforcement."
+      },
+      {
+        "id": "validator",
+        "met": true,
+        "evidence": "Names `AvailabilityCalendarUniqueConstraintValidator.php` and method `AvailabilityCalendarUniqueConstraintValidator::validate()`."
+      },
+      {
+        "id": "lookup_method",
+        "met": true,
+        "evidence": "Explicitly cites `$availability_calendar_storage->getByUserAndSessionPeriod($value->getOwner(), $value->getSessionPeriod())`."
+      },
+      {
+        "id": "links_to_existing",
+        "met": true,
+        "evidence": "Notes that URL link generation pointing to the existing conflicting availability calendar must continue to function."
+      }
+    ],
+    "disc_coverage": 1.0
+  },
+  "G|avail_2": {
+    "coverage": 0.75,
+    "criteria": [
+      {
+        "id": "widget",
+        "met": false,
+        "evidence": "Does not name AvailabilityCalendarFieldDefaultWidget, formElement, FieldWidget, or otherwise surface the widget layer; it only mentions controller/form/interface/validator."
+      },
+      {
+        "id": "day_constant",
+        "met": true,
+        "evidence": "Names AvailabilityCalendarFieldItemInterface.php constant DEPARTURE_TIME_ALLOWED_DAYS as the single authoritative source."
+      },
+      {
+        "id": "current_value_insight",
+        "met": true,
+        "evidence": "States current value is [6], Saturday, using ISO-8601 where 6 = Saturday, and change to [5] Friday."
+      },
+      {
+        "id": "validator_also_reads",
+        "met": true,
+        "evidence": "Names AvailabilityCalendarFieldConstraintValidator::validate() and describes enforcement via checking membership in DEPARTURE_TIME_ALLOWED_DAYS."
+      }
+    ],
+    "disc_coverage": 1.0
+  },
+  "G|mig_1": {
+    "coverage": 1,
+    "criteria": [
+      {
+        "id": "method",
+        "met": true,
+        "evidence": "Names `prepareRow(Row $row)` in `AcmePaymentTransaction.php` and describes the switch in that method handling per-gateway payload normalization."
+      },
+      {
+        "id": "source_class",
+        "met": true,
+        "evidence": "Names class `AcmePaymentTransaction` in `/acme_migrate/src/Plugin/migrate/source/AcmePaymentTransaction.php` as the migration source."
+      },
+      {
+        "id": "stripe_path",
+        "met": true,
+        "evidence": "Describes `case 'stripe'` as PHP-serialized payload using `unserialize(..., ['allowed_classes' => FALSE])`, extracting `paymentRef` and `payMethod`."
+      },
+      {
+        "id": "paypal_path",
+        "met": true,
+        "evidence": "Describes `case 'paypal'` parsing a pipe/delimited-style string via `explode('. ')` and `explode(' : ')`, with key/value normalization and filtering."
+      },
+      {
+        "id": "date_convert",
+        "met": true,
+        "evidence": "Identifies `acceptance_date` and `paypal_clearing_date` conversion using `DrupalDateTime` to Unix timestamps, also setting remote date source properties."
+      }
+    ],
+    "disc_coverage": 1.0
+  },
+  "G|mig_2": {
+    "coverage": 1,
+    "criteria": [
+      {
+        "id": "subscriber",
+        "met": true,
+        "evidence": "Names `web/modules/custom/acme_migrate/src/EventSubscriber/PostMigrationSubscriber.php` and class `PostMigrationSubscriber`."
+      },
+      {
+        "id": "post_import_event",
+        "met": true,
+        "evidence": "States event subscription is bound to `MigrateEvents::POST_IMPORT` for migration ID `acme_commerce1_product_variation_session`."
+      },
+      {
+        "id": "create_method",
+        "met": true,
+        "evidence": "Names method `createProducts(MigrateImportEvent $event)`."
+      },
+      {
+        "id": "per_level_pattern",
+        "met": true,
+        "evidence": "Explicitly maps variation 1 to T2, variation 2 to T3, and adds variation 3 to T1."
+      },
+      {
+        "id": "attach_variations",
+        "met": true,
+        "evidence": "Describes linking variations via `'variations' => [$id]` and one variation per parent product."
+      }
+    ],
+    "disc_coverage": 1.0
+  },
+  "GG|alloc_1": {
+    "coverage": 0.4,
+    "criteria": [
+      {
+        "id": "builder",
+        "met": true,
+        "evidence": "Names `InstructorManager::displaySessionSchedule()` and describes it as preparing/wrapping schedule display."
+      },
+      {
+        "id": "row_helper",
+        "met": true,
+        "evidence": "Names `InstructorManager::instructorScheduleTableMarkup()` and describes it as building the session schedule table rows."
+      },
+      {
+        "id": "attach_hook",
+        "met": false,
+        "evidence": "No mention of `acme_alloc_entity_view`, `hook_entity_view`, or any entity view attach hook."
+      },
+      {
+        "id": "release_date_gate",
+        "met": false,
+        "evidence": "No mention of `field_instructor_schedule_date`, schedule release, or release-date gating."
+      },
+      {
+        "id": "coordinator_source",
+        "met": false,
+        "evidence": "No mention of `getCoordinatorData` or coordinator data/source."
+      }
+    ],
+    "disc_coverage": 0.0
+  },
+  "GG|alloc_2": {
+    "coverage": 1,
+    "criteria": [
+      {
+        "id": "seat_time_entity",
+        "met": true,
+        "evidence": "Names `web/modules/custom/acme_alloc/src/Entity/SeatTime.php`, `SeatTime::preSave()`, `SeatTime::postSave()`, and says SeatTime extends `RevisionableContentEntityBase`."
+      },
+      {
+        "id": "delta_field",
+        "met": true,
+        "evidence": "Explicitly identifies `field_delta` as the recorded position field and describes comparing old/new delta values."
+      },
+      {
+        "id": "save_path",
+        "met": true,
+        "evidence": "Names `SeatTimeForm::save()` and `AssignParticipantToSessionSlotsForm` as paths that create/update SeatTime entities, plus programmatic saves."
+      },
+      {
+        "id": "available_compute",
+        "met": true,
+        "evidence": "Names `SeatTimeStorage::getAvailableSeatTimeOptions()` and describes delta gaps/capacity/first-open-position behavior."
+      },
+      {
+        "id": "priority_rule",
+        "met": true,
+        "evidence": "States durations are `30 mins for priority shifts, 15 mins for regular`."
+      }
+    ],
+    "disc_coverage": 1.0
+  },
+  "GG|avail_1": {
+    "coverage": 0.5,
+    "criteria": [
+      {
+        "id": "constraint_mechanism",
+        "met": true,
+        "evidence": "Mentions a duplicate availability uniqueness constraint and possible field/Symfony validation constraint mechanism, though without the exact constraint class name."
+      },
+      {
+        "id": "validator",
+        "met": true,
+        "evidence": "Mentions a constraint validator, Symfony validator pattern, and possible validate() method as the place generating the message."
+      },
+      {
+        "id": "lookup_method",
+        "met": false,
+        "evidence": "Does not name or describe getByUserAndSessionPeriod or an equivalent specific lookup method."
+      },
+      {
+        "id": "links_to_existing",
+        "met": false,
+        "evidence": "Only says the conflicting existing availability record should continue to be identified/referenced; it does not surface a link-to-existing behavior or link symbol/API."
+      }
+    ],
+    "disc_coverage": 1.0
+  },
+  "GG|avail_2": {
+    "coverage": 1,
+    "criteria": [
+      {
+        "id": "widget",
+        "met": true,
+        "evidence": "Names `AvailabilityCalendarFieldDefaultWidget::formElement()` and says the widget uses the constant to determine whether to show `departure_time`."
+      },
+      {
+        "id": "day_constant",
+        "met": true,
+        "evidence": "Names `AvailabilityCalendarFieldItemInterface::DEPARTURE_TIME_ALLOWED_DAYS` as the rule constant."
+      },
+      {
+        "id": "current_value_insight",
+        "met": true,
+        "evidence": "States current `DEPARTURE_TIME_ALLOWED_DAYS = [6]`, explains PHP `format('N')` where `6 = Saturday`, and proposes changing it to `[5]`."
+      },
+      {
+        "id": "validator_also_reads",
+        "met": true,
+        "evidence": "Names `AvailabilityCalendarFieldConstraintValidator::validate()` and describes it enforcing the rule by checking the constant and requiring `departure_time`."
+      }
+    ],
+    "disc_coverage": 1.0
+  },
+  "GG|mig_1": {
+    "coverage": 1,
+    "criteria": [
+      {
+        "id": "method",
+        "met": true,
+        "evidence": "Names `AcmePaymentTransaction::prepareRow()` as the change point and describes adding a case in its switch."
+      },
+      {
+        "id": "source_class",
+        "met": true,
+        "evidence": "Names source class/file: `web/modules/custom/acme_migrate/src/Plugin/migrate/source/AcmePaymentTransaction.php`."
+      },
+      {
+        "id": "stripe_path",
+        "met": true,
+        "evidence": "Describes Stripe path as PHP-serialized payload using `unserialize`, extracting `paymentRef` and `payMethod`."
+      },
+      {
+        "id": "paypal_path",
+        "met": true,
+        "evidence": "Describes Paypal path as parsing message text by `. ` and ` : ` into key-value pairs."
+      },
+      {
+        "id": "date_convert",
+        "met": true,
+        "evidence": "States `acceptance_date` and `paypal_clearing_date` are converted to Unix timestamps via `DrupalDateTime::getTimestamp()` with exception handling."
+      }
+    ],
+    "disc_coverage": 1.0
+  },
+  "GG|mig_2": {
+    "coverage": 1,
+    "criteria": [
+      {
+        "id": "subscriber",
+        "met": true,
+        "evidence": "Names `web/modules/custom/acme_migrate/src/EventSubscriber/PostMigrationSubscriber.php` and `PostMigrationSubscriber::createProducts()`."
+      },
+      {
+        "id": "post_import_event",
+        "met": true,
+        "evidence": "States `createProducts()` is subscribed to `MigrateEvents::POST_IMPORT` and fires only for the session variation migration."
+      },
+      {
+        "id": "create_method",
+        "met": true,
+        "evidence": "Explicitly identifies method `PostMigrationSubscriber::createProducts()` as the change location."
+      },
+      {
+        "id": "per_level_pattern",
+        "met": true,
+        "evidence": "Describes adding T1 by following existing conditional product creation pattern for T2 and T3 session-level products."
+      },
+      {
+        "id": "attach_variations",
+        "met": true,
+        "evidence": "Describes loading `ProductVariation` entities and associating products via the `variations` array."
+      }
+    ],
+    "disc_coverage": 1.0
+  },
+  "L|alloc_1": {
+    "coverage": 0.2,
+    "criteria": [
+      {
+        "id": "builder",
+        "met": true,
+        "evidence": "Names `web/modules/custom/acme_alloc/src/InstructorManager.php` and `InstructorManager::displaySessionSchedule()` as the method that builds the session schedule table."
+      },
+      {
+        "id": "row_helper",
+        "met": false,
+        "evidence": "Does not mention `instructorScheduleTableMarkup` or any concrete row/table helper; only generically discusses table rendering and possible templates."
+      },
+      {
+        "id": "attach_hook",
+        "met": false,
+        "evidence": "Does not mention `acme_alloc_entity_view`, `hook_entity_view`, or `entity_view` attachment behavior."
+      },
+      {
+        "id": "release_date_gate",
+        "met": false,
+        "evidence": "Does not mention `field_instructor_schedule_date`, schedule release, or release-date gating."
+      },
+      {
+        "id": "coordinator_source",
+        "met": false,
+        "evidence": "Does not mention `getCoordinatorData` or coordinator-derived data."
+      }
+    ],
+    "disc_coverage": 0.0
+  },
+  "L|alloc_2": {
+    "coverage": 1,
+    "criteria": [
+      {
+        "id": "seat_time_entity",
+        "met": true,
+        "evidence": "Names `seat_time` entity, `SeatTimeInterface`, and `SeatTimeStorage.php`."
+      },
+      {
+        "id": "delta_field",
+        "met": true,
+        "evidence": "Explicitly states `field_delta` stores the position and is the single source of truth."
+      },
+      {
+        "id": "save_path",
+        "met": true,
+        "evidence": "Names `AssignParticipantToSessionSlotsForm::saveSeatTime()` and `SessionAllocationParticipantAssignAction::saveSeatTime()` as the two save locations."
+      },
+      {
+        "id": "available_compute",
+        "met": true,
+        "evidence": "Names `SeatTimeStorage.php:getAvailableSeatTimeOptions()` and describes iterating from `0` to `max_capacity - 1` while excluding taken positions."
+      },
+      {
+        "id": "priority_rule",
+        "met": true,
+        "evidence": "States start time uses `delta * session_duration` where duration is `15 min (normal) or 30 min (priority shift)`."
+      }
+    ],
+    "disc_coverage": 1.0
+  },
+  "L|avail_1": {
+    "coverage": 1,
+    "criteria": [
+      {
+        "id": "constraint_mechanism",
+        "met": true,
+        "evidence": "Names `AvailabilityCalendarUniqueConstraint.php`, property `$message`, and describes it as the validation constraint/secondary enforcement layer."
+      },
+      {
+        "id": "validator",
+        "met": true,
+        "evidence": "Names `AvailabilityCalendarUniqueConstraintValidator.php` and `AvailabilityCalendarUniqueConstraintValidator::validate()`."
+      },
+      {
+        "id": "lookup_method",
+        "met": true,
+        "evidence": "Explicitly identifies and preserves `getByUserAndSessionPeriod($value->getOwner(), $value->getSessionPeriod())`."
+      },
+      {
+        "id": "links_to_existing",
+        "met": true,
+        "evidence": "Describes the existing calendar link, preserving the `:url` placeholder and route parameter for the pre-existing calendar."
+      }
+    ],
+    "disc_coverage": 1.0
+  },
+  "L|avail_2": {
+    "coverage": 1,
+    "criteria": [
+      {
+        "id": "widget",
+        "met": true,
+        "evidence": "Names `AvailabilityCalendarFieldDefaultWidget` and describes it as controlling conditional rendering of the `departure_time` field element based on the session date."
+      },
+      {
+        "id": "day_constant",
+        "met": true,
+        "evidence": "Names `DEPARTURE_TIME_ALLOWED_DAYS` in `AvailabilityCalendarFieldItemInterface.php` and proposes changing it from `[6]` to `[5]`."
+      },
+      {
+        "id": "current_value_insight",
+        "met": true,
+        "evidence": "Explicitly states `DEPARTURE_TIME_ALLOWED_DAYS = [6]` and that `6 = Saturday` in PHP `N` format."
+      },
+      {
+        "id": "validator_also_reads",
+        "met": true,
+        "evidence": "Names `AvailabilityCalendarFieldConstraintValidator::validate()` and shows it reads `DEPARTURE_TIME_ALLOWED_DAYS` to enforce missing `departure_time` violations."
+      }
+    ],
+    "disc_coverage": 1.0
+  },
+  "L|mig_1": {
+    "coverage": 1,
+    "criteria": [
+      {
+        "id": "method",
+        "met": true,
+        "evidence": "Names `AcmePaymentTransaction::prepareRow()` as the method to change and discusses normalization inside `prepareRow()`."
+      },
+      {
+        "id": "source_class",
+        "met": true,
+        "evidence": "Names the source class/file: `web/modules/custom/acme_migrate/src/Plugin/migrate/source/AcmePaymentTransaction.php` and `AcmePaymentTransaction`."
+      },
+      {
+        "id": "stripe_path",
+        "met": true,
+        "evidence": "Correctly describes Stripe path: serialized PHP object in `payload`, `unserialize(... allowed_classes => FALSE)`, extracts `paymentRef` and `payMethod`."
+      },
+      {
+        "id": "paypal_path",
+        "met": true,
+        "evidence": "Correctly describes Paypal path: plain-text `message`, parsed by delimiters into key/value pairs, normalized into serialized `payload`."
+      },
+      {
+        "id": "date_convert",
+        "met": true,
+        "evidence": "Explicitly names `DrupalDateTime::getTimestamp()` and conversion of `acceptance_date` / `paypal_clearing_date` to Unix timestamps with NULL on parse failure."
+      }
+    ],
+    "disc_coverage": 1.0
+  },
+  "L|mig_2": {
+    "coverage": 1,
+    "criteria": [
+      {
+        "id": "subscriber",
+        "met": true,
+        "evidence": "Names `web/modules/custom/acme_migrate/src/EventSubscriber/PostMigrationSubscriber.php` and `PostMigrationSubscriber::createProducts()`."
+      },
+      {
+        "id": "post_import_event",
+        "met": true,
+        "evidence": "States event subscription must remain on `MigrateEvents::POST_IMPORT` and migration ID check for `acme_commerce1_product_variation_session`."
+      },
+      {
+        "id": "create_method",
+        "met": true,
+        "evidence": "Identifies method `PostMigrationSubscriber::createProducts()` as the code to change."
+      },
+      {
+        "id": "per_level_pattern",
+        "met": true,
+        "evidence": "Describes existing T2 and T3 products and adds T1 with title convention `Acme-CERT ({LEVEL})`."
+      },
+      {
+        "id": "attach_variations",
+        "met": true,
+        "evidence": "Describes products wrapping variations via the `variations` array and proposes `ProductVariation::load(3)` with `variations => [3]`."
+      }
+    ],
+    "disc_coverage": 1.0
+  }
+}

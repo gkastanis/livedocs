@@ -1,0 +1,21 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["coverage", "criteria"],
+  "properties": {
+    "coverage": { "type": "number", "description": "fraction 0..1 of context criteria the plan genuinely surfaces" },
+    "criteria": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "met", "evidence"],
+        "properties": {
+          "id": { "type": "string" },
+          "met": { "type": "boolean" },
+          "evidence": { "type": "string", "description": "short quote/paraphrase from the plan, or why not met" }
+        }
+      }
+    }
+  }
+}

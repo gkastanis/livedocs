@@ -237,6 +237,9 @@ livedocs/
 ├── tests/
 │   ├── test_drift.sh      # runs the whole pipeline against a throwaway project
 │   └── README.md
+├── eval/                  # pilot: does livedocs help a coding agent find context?
+│   ├── README.md          # method, findings, and how to reproduce on your own repo
+│   └── ...                # dataset, rubrics, deterministic scorer, judge harness
 ├── docs/
 │   └── REWIRING-NOTES.md  # work left for later
 ├── install.sh             # installs livedocs and the adapter assets
@@ -284,6 +287,10 @@ against a real project when you set `OB_DOCS` and `OB_PROJECT`. See
 - `adapters/drupal/README.md`: where the Drupal adapter files came from and what
   still needs rewiring.
 - `tests/README.md`: running the end-to-end drift test.
+- `eval/README.md`: a pilot study and reusable harness measuring whether the docs
+  help a coding agent that already has a code graph and grep. The numbers are a
+  pilot, not a reproducible benchmark; the README explains how to run the method
+  on your own repo.
 - `docs/REWIRING-NOTES.md`: the work left for later.
 
 ## Status

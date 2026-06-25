@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=https://git.drupalcode.org/project/ai_eval/-/raw/1.0.x/schema/rubric.schema.json
+id: ctx_avail_1
+version: '1.0'
+description: Context-completeness for change task avail_1
+applicable_bundles:
+- code_navigation
+checks:
+- id: constraint_mechanism
+  kind: must_contain_any
+  case_sensitive: false
+  values:
+  - AvailabilityCalendarUniqueConstraint
+  - validation constraint
+  - symfony constraint
+  - constraint plugin
+  - Unique constraint
+  metadata:
+    discriminator: true
+- id: validator
+  kind: must_contain_any
+  case_sensitive: false
+  values:
+  - UniqueConstraintValidator
+  - ::validate
+  - validator
+  metadata:
+    discriminator: false
+- id: lookup_method
+  kind: must_contain_any
+  case_sensitive: false
+  values:
+  - getByUserAndSessionPeriod
+  metadata:
+    discriminator: false
+- id: links_to_existing
+  kind: must_contain_any
+  case_sensitive: false
+  values:
+  - link
+  - existing
+  metadata:
+    discriminator: false
+scoring:
+  combine: weighted_avg
+  weights:
+    constraint_mechanism: 2.0
+    validator: 1.0
+    lookup_method: 1.0
+    links_to_existing: 1.0
+  threshold: 0.6

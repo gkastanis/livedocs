@@ -1,0 +1,54 @@
+# yaml-language-server: $schema=https://git.drupalcode.org/project/ai_eval/-/raw/1.0.x/schema/rubric.schema.json
+id: ctx_avail_2
+version: '1.0'
+description: Context-completeness for change task avail_2
+applicable_bundles:
+- code_navigation
+checks:
+- id: widget
+  kind: must_contain_any
+  case_sensitive: false
+  values:
+  - AvailabilityCalendarFieldDefaultWidget
+  - formElement
+  - FieldWidget
+  metadata:
+    discriminator: false
+- id: day_constant
+  kind: must_contain_any
+  case_sensitive: false
+  values:
+  - DEPARTURE_TIME_ALLOWED_DAYS
+  metadata:
+    discriminator: false
+- id: current_value_insight
+  kind: must_contain_any
+  case_sensitive: false
+  values:
+  - '[6]'
+  - Saturday
+  - day 6
+  - currently 6
+  - '[5]'
+  - Friday
+  - day 5
+  metadata:
+    discriminator: true
+- id: validator_also_reads
+  kind: must_contain_any
+  case_sensitive: false
+  values:
+  - AvailabilityCalendarFieldConstraintValidator
+  - constraint validator
+  - also enforced
+  - validation
+  metadata:
+    discriminator: false
+scoring:
+  combine: weighted_avg
+  weights:
+    widget: 1.0
+    day_constant: 1.0
+    current_value_insight: 2.0
+    validator_also_reads: 1.0
+  threshold: 0.6

@@ -1,0 +1,59 @@
+# yaml-language-server: $schema=https://git.drupalcode.org/project/ai_eval/-/raw/1.0.x/schema/rubric.schema.json
+id: ctx_alloc_1
+version: '1.0'
+description: Context-completeness for change task alloc_1
+applicable_bundles:
+- code_navigation
+checks:
+- id: builder
+  kind: must_contain_any
+  case_sensitive: false
+  values:
+  - displaySessionSchedule
+  metadata:
+    discriminator: false
+- id: row_helper
+  kind: must_contain_any
+  case_sensitive: false
+  values:
+  - instructorScheduleTableMarkup
+  metadata:
+    discriminator: false
+- id: attach_hook
+  kind: must_contain_any
+  case_sensitive: false
+  values:
+  - acme_alloc_entity_view
+  - hook_entity_view
+  - entity_view
+  metadata:
+    discriminator: true
+- id: release_date_gate
+  kind: must_contain_any
+  case_sensitive: false
+  values:
+  - field_instructor_schedule_date
+  - schedule release
+  - release date
+  - released
+  - schedule_date
+  - until the schedule
+  metadata:
+    discriminator: true
+- id: coordinator_source
+  kind: must_contain_any
+  case_sensitive: false
+  values:
+  - getCoordinatorData
+  - coordinator
+  metadata:
+    discriminator: false
+scoring:
+  combine: weighted_avg
+  weights:
+    builder: 1.0
+    row_helper: 1.0
+    attach_hook: 2.0
+    release_date_gate: 2.0
+    coordinator_source: 1.0
+  threshold: 0.6

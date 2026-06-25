@@ -1,7 +1,8 @@
 #!/bin/bash
 # generate-method-index.sh - Index public methods in Service, Controller, Form classes
 # Output: docs/semantic/structural/methods.md
-# Scans src/Service/, src/Controller/, src/Form/ in custom modules.
+# Scans src/Service/, src/Controller/, src/Form/ (and EventSubscriber/Access/
+# Manager/Builder) in custom modules, plus classes placed directly in src/.
 # Skips *Interface.php, *Trait.php, and magic methods.
 set -e
 
@@ -160,6 +161,23 @@ for category_dir in "Service" "Controller" "Form" "EventSubscriber" "Access" "Ma
         esac
     done < <(find -L "$MODULES_DIR" -path "*/src/${category_dir}/*.php" 2>/dev/null | sort)
 done
+
+# Also index classes placed directly in src/ (no category subdirectory), which
+# is valid Drupal and common in small modules (e.g. a single service class).
+# Match only files immediately in src/, not nested under a category dir, so they
+# are not counted twice. Classify by filename suffix; everything else is "Other".
+while IFS= read -r php_file; do
+    bn=$(basename "$php_file")
+    [[ "$bn" == *Interface.php ]] && continue
+    [[ "$bn" == *Trait.php ]] && continue
+
+    case "$bn" in
+        *Controller.php) process_php_file "$php_file" "Controller" ;;
+        *Form.php)       process_php_file "$php_file" "Form" ;;
+        *Service.php)    process_php_file "$php_file" "Service" ;;
+        *)               process_php_file "$php_file" "Other" ;;
+    esac
+done < <(find -L "$MODULES_DIR" -path "*/src/*.php" -not -path "*/src/*/*.php" 2>/dev/null | sort)
 
 # --- Write output ---
 

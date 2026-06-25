@@ -146,8 +146,9 @@ if [ -d "$HOME/.claude" ] || [ -f "$HOME/.claude.json" ]; then
   for ag in "${LIVEDOCS_AGENTS[@]}"; do
     dest="$CLAUDE_AGENTS/$ag.md"
     # Only remove agent files we generated (tagged). Leave foreign files alone.
+    # The tag is on line 1, or line 2 when it sits inside YAML frontmatter.
     if [ -f "$dest" ]; then
-      if head -n1 "$dest" 2>/dev/null | grep -qF "$FILE_TAG"; then
+      if head -n2 "$dest" 2>/dev/null | grep -qF "$FILE_TAG"; then
         rm_path "agent '$ag'" "$dest"
       else
         warn "agent '$ag' at $dest is not tagged by us; leaving it untouched."
@@ -158,8 +159,9 @@ if [ -d "$HOME/.claude" ] || [ -f "$HOME/.claude.json" ]; then
   for cmd in "${LIVEDOCS_COMMANDS[@]}"; do
     dest="$CLAUDE_COMMANDS/$cmd.md"
     # Only remove command files we generated (tagged). Leave foreign files alone.
+    # The tag is on line 1, or line 2 when it sits inside YAML frontmatter.
     if [ -f "$dest" ]; then
-      if head -n1 "$dest" 2>/dev/null | grep -qF "$FILE_TAG"; then
+      if head -n2 "$dest" 2>/dev/null | grep -qF "$FILE_TAG"; then
         rm_path "command '$cmd'" "$dest"
       else
         warn "command '$cmd' at $dest is not tagged by us; leaving it untouched."

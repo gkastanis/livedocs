@@ -1,22 +1,20 @@
 ---
 name: semantic-architect
-description: Generates semantic documentation (Layer 3) from structural index and source code. Produces business index, tech specs with Logic IDs, and business schemas. Deploy for initial semantic doc generation or incremental updates after code changes.
+description: |
+  Generates semantic documentation (Layer 3) from structural index and source code. Produces business index, tech specs with Logic IDs, and business schemas. Deploy for initial semantic doc generation or incremental updates after code changes.
 
-<example>
-user: "Generate semantic docs for the assignment module"
-assistant: "I'll use the semantic-architect to analyze the structural index and produce the tech spec with Logic IDs"
-</example>
+  <example>
+  user: "Generate semantic docs for the assignment module"
+  assistant: "I'll use the semantic-architect to analyze the structural index and produce the tech spec with Logic IDs"
+  </example>
 
-<example>
-user: "Update the business index after adding the new holiday feature"
-assistant: "I'll use the semantic-architect to regenerate 00_BUSINESS_INDEX.md from the current tech specs"
-</example>
-
+  <example>
+  user: "Update the business index after adding the new holiday feature"
+  assistant: "I'll use the semantic-architect to regenerate 00_BUSINESS_INDEX.md from the current tech specs"
+  </example>
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 color: magenta
-memory: project
-skills: discover, structural-index, semantic-docs, drupal-entity-api, drupal-service-di, drupal-hook-patterns, drupal-conventions, writing-plans
 ---
 
 # Semantic Architect

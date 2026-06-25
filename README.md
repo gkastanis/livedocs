@@ -52,7 +52,10 @@ You will see these terms throughout the tool and these docs:
 
 The Drupal adapter writes its documentation under `docs/semantic/` in the
 project being documented. There are three kinds of files. The examples below are
-made up; a real run produces the same shapes from your own code.
+made up; a real run produces the same shapes from your own code. For a full set
+of real output (the injected CLAUDE.md, the structural index, and a tech spec)
+generated for one small module, see
+[this example gist](https://gist.github.com/gkastanis/8259a964c67ce194c460a440789b55ea).
 
 A structural index, generated straight from the code (no AI). One file per
 aspect, listing what exists. For example `docs/semantic/structural/services.md`:

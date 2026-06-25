@@ -1,19 +1,20 @@
 #!/bin/bash
 # project-state-check.sh
 # SessionStart hook: detect project documentation state and hint the next step.
-# Chain: /drupal-bootstrap (structural index) → /drupal-semantic init (tech specs
-#        + business index + CLAUDE.md hint via @semantic-architect agent).
+# Chain: structural-index generators (generate-all.sh) → /drupal-semantic init
+#        (tech specs + business index + CLAUDE.md hint via @semantic-architect).
 # Outputs the first gap found and its fix command. Exit 0 always.
 
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+# Sibling scripts (the validators) install into the same dir as this one.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 STRUCTURAL_DIR="$PROJECT_DIR/docs/semantic/structural"
 TECH_DIR="$PROJECT_DIR/docs/semantic/tech"
 BUSINESS_INDEX="$PROJECT_DIR/docs/semantic/00_BUSINESS_INDEX.md"
 
 # --- Step 1: Structural index (bash scripts) ---
 if [[ ! -f "$STRUCTURAL_DIR/.generated-at" ]]; then
-    echo "DOCS: No structural index. Next: /drupal-bootstrap"
+    echo "DOCS: No structural index. Next: run the structural-index generators (generate-all.sh)"
     exit 0
 fi
 
@@ -22,7 +23,7 @@ STALE=$(find "$PROJECT_DIR" -newer "$STRUCTURAL_DIR/.generated-at" \
     \( -name '*.services.yml' -o -name '*.routing.yml' -o -name '*.module' -o -name '*.permissions.yml' \) \
     -path '*/modules/*' 2>/dev/null | head -1)
 if [[ -n "$STALE" ]]; then
-    echo "STRUCTURAL INDEX: Stale (source files changed). Run /drupal-refresh to regenerate."
+    echo "STRUCTURAL INDEX: Stale (source files changed). Regenerate with generate-all.sh."
 fi
 
 # --- Step 2: Semantic docs (@semantic-architect agent) ---
@@ -38,6 +39,6 @@ if [[ ! -f "$BUSINESS_INDEX" ]]; then
 fi
 
 # --- All layers present: run validation ---
-bash "$PLUGIN_ROOT/scripts/validate-semantic-docs.sh" "$PROJECT_DIR" 2>/dev/null
+bash "$SCRIPT_DIR/validate-semantic-docs.sh" "$PROJECT_DIR" 2>/dev/null
 
 exit 0

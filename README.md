@@ -132,10 +132,12 @@ It handles one feature per run to keep each pass focused. Logic IDs are stable:
 existing ones are never renumbered, new ones are appended, and removed code is
 marked deprecated rather than deleted, so the anchors stay valid across updates.
 
-The agent and the generators are a faithful copy of the drupal-workflow plugin.
-The generators run on their own today; the single `drupal-semantic` command that
-orchestrates the agent needs the rewiring noted in `docs/REWIRING-NOTES.md`
-before it runs end to end as one command.
+The agent and the generators began as a copy of the drupal-workflow plugin, now
+rewired to run standalone (see `adapters/drupal/README.md`, "Standalone wiring").
+The structural generators run on their own, and the `drupal-semantic` command
+resolves its validators and CLAUDE.md injection without the plugin. Its tech-spec
+generation step runs the `@semantic-architect` agent inside your coding-agent
+session.
 
 ## Creating, updating, and keeping docs in sync
 
@@ -296,12 +298,12 @@ against a real project when you set `OB_DOCS` and `OB_PROJECT`. See
 ## Status
 
 This is a working proof of concept. The core matching and drift detection are
-tested against real projects. The Drupal
-adapter is a faithful copy of the original plugin files and runs its structural
-generators on their own, but a few of its files still reference the old plugin
-and need rewiring before the full Drupal pipeline runs end to end. The installer
-copies files from this checkout rather than from a published release. What is
-left to do is listed in `docs/REWIRING-NOTES.md`.
+tested against real projects. The Drupal adapter began as a copy of the original
+plugin files and has been rewired to run standalone, so the `drupal-semantic`
+command works without the plugin runtime. The installer still copies files from
+this checkout rather than from a published release. The remaining cross-repo work
+(folding the documentation feature back into drupal-workflow, and the
+release-archive installer) is listed in `docs/REWIRING-NOTES.md`.
 
 ## License
 

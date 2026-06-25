@@ -28,7 +28,10 @@ If no argument given, default to `status`.
 
 ```bash
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
-PLUGIN_ROOT=$(cat /tmp/drupal-workflow-plugin-root 2>/dev/null || echo "${CLAUDE_PLUGIN_ROOT:-}")
+PROJECT_NAME="$(basename "$PROJECT_DIR")"
+# The adapter validators install flat into livedocs' lib dir, next to the
+# `livedocs` binary on PATH. Derive that dir from the binary's location.
+LIVEDOCS_LIB="$(cd "$(dirname "$(command -v livedocs)")/../lib/livedocs" 2>/dev/null && pwd)"
 ```
 
 ---
@@ -40,7 +43,7 @@ No agent needed. Inline check.
 ### Step 1: Check Prerequisites
 
 Verify `docs/semantic/structural/.generated-at` exists. If not:
-> Structural index not found. Run `/drupal-refresh` first.
+> Structural index not found. Generate it first with the structural-index generators (`generate-all.sh`).
 
 ### Step 2: List Documented Features
 
@@ -101,7 +104,7 @@ Spawn `@semantic-architect` with task:
 Run validator to check naming and frontmatter. Auto-fix if possible:
 
 ```bash
-"$PLUGIN_ROOT/scripts/validate-tech-specs.sh" "$PROJECT_DIR" --fix
+"$LIVEDOCS_LIB/validate-tech-specs.sh" "$PROJECT_DIR" --fix
 ```
 
 If errors remain after --fix, warn the user about non-conforming files.
@@ -111,7 +114,7 @@ If errors remain after --fix, warn the user about non-conforming files.
 Run inject script to keep Codebase section counts in sync:
 
 ```bash
-"$PLUGIN_ROOT/scripts/inject-claude-md.sh" "$PROJECT_DIR"
+livedocs inject "$PROJECT_DIR/docs/semantic" "$PROJECT_NAME" "$PROJECT_DIR"
 ```
 
 ### Step 5: Report
@@ -144,7 +147,7 @@ Spawn `@semantic-architect` with task:
 Run inject script to keep Codebase section counts in sync:
 
 ```bash
-"$PLUGIN_ROOT/scripts/inject-claude-md.sh" "$PROJECT_DIR"
+livedocs inject "$PROJECT_DIR/docs/semantic" "$PROJECT_NAME" "$PROJECT_DIR"
 ```
 
 ### Step 4: Report
@@ -188,7 +191,7 @@ PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 ```
 
 Check `docs/semantic/structural/.generated-at` exists. If not:
-> Structural index not found. Run `/drupal-refresh` first.
+> Structural index not found. Generate it first with the structural-index generators (`generate-all.sh`).
 
 ### Step 2: Discover Modules
 
@@ -221,7 +224,7 @@ Create `docs/semantic/GENERATION_SUMMARY.md`:
 # Semantic Documentation Generation Summary
 
 **Generated**: <YYYY-MM-DD HH:MM>
-**Plugin version**: 1.5.0
+**Generator**: livedocs Drupal adapter
 
 ## Features Generated
 
@@ -248,7 +251,7 @@ Create `docs/semantic/GENERATION_SUMMARY.md`:
 Run validator across all generated specs. Auto-fix naming and frontmatter issues:
 
 ```bash
-"$PLUGIN_ROOT/scripts/validate-tech-specs.sh" "$PROJECT_DIR" --fix
+"$LIVEDOCS_LIB/validate-tech-specs.sh" "$PROJECT_DIR" --fix
 ```
 
 If errors remain after --fix, list them in the report.
@@ -258,10 +261,10 @@ If errors remain after --fix, list them in the report.
 Run the inject script to add/update the `## Codebase` section in the project's CLAUDE.md:
 
 ```bash
-"$PLUGIN_ROOT/scripts/inject-claude-md.sh" "$PROJECT_DIR"
+livedocs inject "$PROJECT_DIR/docs/semantic" "$PROJECT_NAME" "$PROJECT_DIR"
 ```
 
-This is the hint that drives +61% speed improvement. If no CLAUDE.md exists, creates one.
+This is the pointer that lets an agent read the docs before exploring the code by hand. If no CLAUDE.md exists, creates one.
 
 ### Step 9: Report
 
@@ -282,13 +285,13 @@ PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 If `$ARGUMENTS` contains `--fix`:
 
 ```bash
-"$PLUGIN_ROOT/scripts/validate-tech-specs.sh" "$PROJECT_DIR" --fix
+"$LIVEDOCS_LIB/validate-tech-specs.sh" "$PROJECT_DIR" --fix
 ```
 
 Otherwise report-only:
 
 ```bash
-"$PLUGIN_ROOT/scripts/validate-tech-specs.sh" "$PROJECT_DIR"
+"$LIVEDOCS_LIB/validate-tech-specs.sh" "$PROJECT_DIR"
 ```
 
 ### Step 2: Report
@@ -305,7 +308,7 @@ No agent needed. Updates CLAUDE.md without regenerating any docs.
 
 ```bash
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
-"$PLUGIN_ROOT/scripts/inject-claude-md.sh" "$PROJECT_DIR"
+livedocs inject "$PROJECT_DIR/docs/semantic" "$PROJECT_NAME" "$PROJECT_DIR"
 ```
 
 ### Step 2: Report

@@ -34,13 +34,13 @@ extract_frontmatter() {
 
 # --- Guard: skip if no semantic docs exist ---
 if [[ ! -d "$TECH_DIR" ]]; then
-    echo "SEMANTIC DOCS: No tech specs found (run /drupal-bootstrap to set up)"
+    echo "SEMANTIC DOCS: No tech specs found (run generate-all.sh, then /drupal-semantic init)"
     exit 0
 fi
 
 TECH_SPECS=("$TECH_DIR"/*.md)
 if [[ ! -f "${TECH_SPECS[0]}" ]]; then
-    echo "SEMANTIC DOCS: No tech specs found (run /drupal-bootstrap to set up)"
+    echo "SEMANTIC DOCS: No tech specs found (run generate-all.sh, then /drupal-semantic init)"
     exit 0
 fi
 
@@ -74,7 +74,7 @@ if [[ -f "$FEATURE_MAP" ]]; then
         fi
     done
 else
-    warn "FEATURE_MAP.md is missing. Run /drupal-refresh to generate it."
+    warn "FEATURE_MAP.md is missing. Generate it with generate-all.sh."
 fi
 
 # --- Check 3: related_files in frontmatter point to existing files ---

@@ -7,11 +7,12 @@ code graph.
 
 ## Where these files came from
 
-Every file under `adapters/drupal/`, except this README, was copied without
-changes from the drupal-workflow Claude Code plugin, version 2.0.1. Each one is
-byte-for-byte identical to its source. They are only the documentation part of
-that plugin. The unrelated parts of the plugin (its autopilot, task classifier,
-session analysis, and hooks) were left behind on purpose.
+Every file under `adapters/drupal/`, except this README, was imported from the
+drupal-workflow Claude Code plugin, version 2.0.1, as a verbatim copy. They are
+only the documentation part of that plugin; the unrelated parts (its autopilot,
+task classifier, session analysis, and hooks) were left behind on purpose. A few
+files have since been rewired so the adapter runs standalone instead of inside
+the plugin runtime, see "Standalone wiring" below.
 
 - Source: drupal-workflow 2.0.1
 - License: MIT, declared in the plugin's `.claude-plugin/plugin.json`. The plugin
@@ -32,61 +33,34 @@ What was copied:
 | `scripts/validate-semantic-docs.sh` | `scripts/validate-semantic-docs.sh` |
 | `scripts/validate-tech-specs.sh` | `scripts/validate-tech-specs.sh` |
 
-The copy was checked with `diff -r` (every tree and file identical) and by
-comparing executable bits (all `.sh` files kept at mode 775).
+At import the copy was checked with `diff -r` (every tree and file identical) and
+by comparing executable bits (all `.sh` files kept at mode 775). The files rewired
+for standalone use since then are listed under "Standalone wiring"; the rest stay
+identical to 2.0.1.
 
-## What still needs rewiring
+## Standalone wiring
 
-Some of the copied files refer to things outside `adapters/drupal/` or assume
-they are running inside the drupal-workflow plugin. They are listed here but left
-unchanged, because this repo keeps the files as a faithful copy. They will need
-fixing before the full Drupal pipeline runs on its own.
+The copied files originally assumed the drupal-workflow plugin runtime. They have
+been rewired so the adapter runs on its own, as installed by `install.sh`:
 
-### 1. PLUGIN_ROOT assumes the plugin runtime
+- **Script location.** `install.sh` puts the `livedocs` core on PATH (in
+  `$PREFIX/bin`) and the adapter validators flat in `$PREFIX/lib/livedocs`.
+  `commands/drupal-semantic.md` derives that lib dir from the binary location
+  (`LIVEDOCS_LIB="$(cd "$(dirname "$(command -v livedocs)")/../lib/livedocs" && pwd)"`)
+  and calls `$LIVEDOCS_LIB/validate-tech-specs.sh`. `scripts/project-state-check.sh`
+  finds its sibling `validate-semantic-docs.sh` from its own directory. Neither
+  needs `PLUGIN_ROOT` or `CLAUDE_PLUGIN_ROOT` any more.
+- **CLAUDE.md injection.** The plugin's `inject-claude-md.sh` was never part of
+  the copied feature, so the four calls to it now use the generic
+  `livedocs inject <docs-dir> <project> <project-dir>` that the core ships.
+- **Dead command hints.** Prose that pointed at `/drupal-refresh` and
+  `/drupal-bootstrap` (commands this repo does not ship) now points at the
+  structural-index generators (`generate-all.sh`).
 
-`scripts/project-state-check.sh:9`
-
-```
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-```
-
-This falls back to `CLAUDE_PLUGIN_ROOT`, which only the Claude Code plugin loader
-sets. The `$(dirname)/..` fallback happens to resolve to the adapter root here,
-so the call on line 41 to `$PLUGIN_ROOT/scripts/validate-semantic-docs.sh` does
-find the copied validator. But the environment-variable path is a plugin
-assumption that does not hold in this standalone repo.
-
-`commands/drupal-semantic.md:31`
-
-```
-PLUGIN_ROOT=$(cat /tmp/drupal-workflow-plugin-root 2>/dev/null || echo "${CLAUDE_PLUGIN_ROOT:-}")
-```
-
-This reads a temp file written by the plugin's startup, or `CLAUDE_PLUGIN_ROOT`.
-Neither exists here, so `PLUGIN_ROOT` ends up empty and every
-`"$PLUGIN_ROOT/scripts/..."` call below it breaks.
-
-### 2. A referenced script that was not copied
-
-`commands/drupal-semantic.md` calls `"$PLUGIN_ROOT/scripts/inject-claude-md.sh"`
-at lines 114, 147, 261, and 308. That script exists in the source plugin but is
-not part of the documentation feature, so it was not copied and is absent here.
-These calls will fail until the script is provided or the calls are removed.
-
-### 3. Commands referenced but not copied
-
-`commands/drupal-semantic.md:43,191` and `agents/semantic-architect.md:39`
-mention `/drupal-refresh`. That is a separate drupal-workflow command outside the
-copied set. The references are prose pointing at a command this repo does not
-ship.
-
-### 4. Validator cross-calls that depend on PLUGIN_ROOT
-
-`commands/drupal-semantic.md` calls `"$PLUGIN_ROOT/scripts/validate-tech-specs.sh"`
-at lines 104, 251, 285, and 291, and `project-state-check.sh:41` calls
-`"$PLUGIN_ROOT/scripts/validate-semantic-docs.sh"`. Both target scripts were
-copied into `scripts/`, so these work as long as `PLUGIN_ROOT` is set to the
-adapter root (see item 1).
+One cross-repo step remains and is deliberately not done here: folding this
+documentation feature back so the drupal-workflow plugin depends on this repo
+instead of carrying its own copy. That edits the installed plugin and is a
+separate, human step, tracked as item 1 in `../../docs/REWIRING-NOTES.md`.
 
 ### Things that look like problems but are not
 

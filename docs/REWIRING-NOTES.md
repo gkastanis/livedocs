@@ -1,9 +1,11 @@
 # Rewiring notes (work left for later)
 
-This file lists work that is deliberately not being done yet. None of it is in
-scope right now. Today the repo is a faithful, byte-for-byte copy of the
-drupal-workflow 2.0.1 documentation feature, plus the generic core.
-Nothing below has been rewired.
+This file lists cross-repo work that is deliberately not being done yet. The
+adapter itself has been rewired to run standalone (item 2 below is done); what
+remains is the plugin-side consolidation and the release-archive installer. The
+adapter started as a verbatim copy of the drupal-workflow 2.0.1 documentation
+feature; the files changed since are listed in `adapters/drupal/README.md` under
+"Standalone wiring".
 
 ## 1. Make drupal-workflow depend on this repo
 
@@ -24,30 +26,15 @@ Rough shape of the eventual change (do not do this now):
 - Leave drupal-workflow's autopilot, task classifier, session analysis, and
   hooks alone. Those were never part of the copy.
 
-## 2. Rewire the copied adapter files
+## 2. Rewire the copied adapter files (done)
 
-The Drupal adapter files were copied as-is, so they still contain references that
-assume the drupal-workflow plugin is running. These are written down, per file
-and per line, in `adapters/drupal/README.md` under "What still needs rewiring".
-That README is the single source for the list, so it is not repeated here. In
-short, running the adapter on its own will eventually require:
-
-- pointing `PLUGIN_ROOT` (now `CLAUDE_PLUGIN_ROOT` or the
-  `/tmp/drupal-workflow-plugin-root` temp file) at the adapter root;
-- deciding what to do with text that mentions the `/drupal-refresh` command,
-  which this repo does not ship.
-
-The adapter's `drupal-semantic.md` still calls
-`"$PLUGIN_ROOT/scripts/inject-claude-md.sh"`, which was not part of the copied
-feature. The core now ships a generic replacement, `livedocs inject` (see
-`core/README.md`), which `/livedocs-check` calls to keep the `## Codebase`
-section in CLAUDE.md current. Rewiring the verbatim `drupal-semantic.md` to call
-`livedocs inject` instead of the missing plugin script is part of the adapter
-rewiring above, and is left for when the copy stops being byte-for-byte.
-
-Until that work is done, the adapter scripts are kept for provenance and
-reference. The structural generators do run on their own, but the full Drupal
-pipeline driven by the `drupal-semantic` command does not yet.
+Done. The adapter no longer assumes the drupal-workflow plugin runtime: it
+resolves its validators from the installed `livedocs` lib dir, injects the
+`## Codebase` section via the generic `livedocs inject`, and points its prose at
+`generate-all.sh` instead of the unshipped `/drupal-refresh` and
+`/drupal-bootstrap` commands. The full `drupal-semantic` command now runs
+standalone. The exact per-file changes are in `adapters/drupal/README.md` under
+"Standalone wiring".
 
 ## 3. Keeping the copy in sync with upstream
 

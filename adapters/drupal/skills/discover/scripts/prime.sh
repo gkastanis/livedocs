@@ -31,7 +31,7 @@ if [[ -f "$FEATURE_MAP" ]]; then
         STALE_COUNT=$(find "$PROJECT_DIR" -newer "$STRUCTURAL_DIR/.generated-at" \( -name "*.services.yml" -o -name "*.routing.yml" -o -name "*.module" \) 2>/dev/null | wc -l)
         if [[ "$STALE_COUNT" -gt 0 ]]; then
             echo "⚠️  STALENESS WARNING: $STALE_COUNT structural source files changed since $GEN_TIME"
-            echo "   Run /drupal-refresh to regenerate."
+            echo "   Regenerate with generate-all.sh."
             echo ""
         fi
     fi

@@ -36,7 +36,7 @@ skills: discover, structural-index, semantic-docs, drupal-entity-api, drupal-ser
 The structural index MUST exist before running. Check for `docs/semantic/structural/.generated-at`.
 
 If missing, tell the user:
-> Structural index not found. Run `/drupal-refresh` to generate it first.
+> Structural index not found. Generate it first with the structural-index generators (`generate-all.sh`).
 
 Stop immediately if the structural index is absent.
 

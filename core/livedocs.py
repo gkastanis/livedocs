@@ -12,18 +12,58 @@ Subcommands:
   enrich  <sem_dir> <project> <logic_id> live call graph for one Logic ID
   inject  <sem_dir> <project> [dir]      write a compact ## Codebase section into CLAUDE.md
 """
-import json, os, re, subprocess, sys, datetime, pathlib, hashlib
+import json, os, re, subprocess, sys, time, datetime, pathlib, hashlib
 
-BIN = pathlib.Path.home() / ".local/bin/codebase-memory-mcp"
+# Path to the codebase-memory-mcp CLI. Overridable so the tool works when the
+# binary lives elsewhere, and so tests can point it at a shim.
+BIN = pathlib.Path(os.environ.get(
+    "LIVEDOCS_CBM", pathlib.Path.home() / ".local/bin/codebase-memory-mcp"))
+
+# A Logic ID token, e.g. FEAT-L1 (markdown emphasis stripped before matching).
+LID_RE = re.compile(r"^[A-Z]+-L\d+$")
+# A name the resolver can look up: identifiers plus dotted/namespaced callables
+# (e.g. app.module.init, Foo\Bar). Dotted names are KEPT, not dropped, so
+# behavior/callback rows are recorded (anchored or not_in_graph), never skipped.
+NAME_RE = re.compile(r"^[A-Za-z_][\w.\\]*$")
 
 
-def cbm(tool, payload):
-    p = subprocess.run([str(BIN), "cli", tool, json.dumps(payload)],
-                       capture_output=True, text=True)
-    try:
-        return json.loads(p.stdout)
-    except json.JSONDecodeError:
-        return {}
+class BackendError(RuntimeError):
+    """The codebase-memory backend is missing or persistently unready."""
+
+
+# The CLI backend lazy-loads a project's graph on first access and, under burst
+# load, can return {"error": "... not found or not indexed"} while still EXITING
+# 0 -- indistinguishable from a genuine miss. Retry that transient state with
+# bounded backoff so identical runs agree; a persistent failure raises
+# BackendError rather than silently poisoning anchors as not_in_graph (issue #6).
+_COLD = "not found or not indexed"
+
+
+def cbm(tool, payload, retries=5):
+    delay, last = 0.25, ""
+    for attempt in range(retries + 1):
+        try:
+            p = subprocess.run([str(BIN), "cli", tool, json.dumps(payload)],
+                               capture_output=True, text=True)
+        except FileNotFoundError:
+            raise BackendError(f"codebase-memory backend not found at {BIN} "
+                               f"(set LIVEDOCS_CBM to its path)")
+        try:
+            data = json.loads(p.stdout)
+            transient = isinstance(data, dict) and _COLD in str(data.get("error", ""))
+            last = data.get("error", "") if transient else last
+        except json.JSONDecodeError:
+            data, transient = {}, True
+            last = (p.stderr or p.stdout or "no output").strip()[:200]
+        if not transient:
+            return data
+        if attempt < retries:
+            time.sleep(delay)
+            delay = min(delay * 2, 2.0)
+            continue
+        raise BackendError(
+            f"backend not ready for '{tool}' after {retries} retries: {last}")
+    return {}
 
 
 def now():
@@ -52,10 +92,22 @@ _ROOTS = {}  # project -> root_path (cached per process)
 
 
 def project_root(project):
+    # An explicit override always wins (and rescues file-fallback when the
+    # backend can't supply a root_path, issue #7).
+    override = os.environ.get("LIVEDOCS_ROOT")
+    if override:
+        return override
     if project not in _ROOTS:
         r = cbm("list_projects", {})
-        _ROOTS[project] = next((p.get("root_path") for p in r.get("projects", [])
-                                if p.get("name") == project), None)
+        match = next((p for p in r.get("projects", [])
+                      if p.get("name") == project), None)
+        root = (match or {}).get("root_path") or None
+        if match is not None and not root:
+            print(f"  warning: backend returned no root_path for '{project}'; "
+                  f"file-fallback verification disabled "
+                  f"(set LIVEDOCS_ROOT to the project dir to restore it)",
+                  file=sys.stderr)
+        _ROOTS[project] = root
     return _ROOTS[project]
 
 
@@ -81,7 +133,7 @@ def file_fallback_hash(root, declared_file, name):
     # mentions — an unrelated comment referencing the symbol must not flag drift.
     if not root or not declared_file or "*" in declared_file:
         return (None, None, None)
-    if not re.match(r"^[A-Za-z_]\w*$", name or ""):
+    if not NAME_RE.match(name or ""):
         return (None, None, None)
     p = pathlib.Path(root) / declared_file
     if not p.is_file():
@@ -103,18 +155,100 @@ def file_fallback_hash(root, declared_file, name):
     return (content_hash_of(blob), [chosen[0][0], chosen[-1][0]], "file")
 
 
-# Logic-to-Code rows: | MCP-L15 | description | `file` | `Class::method()` | complexity |
-# The method column is captured whole (it may list several `Class::method()`
-# separated by commas, or contain backticks) and cleaned in parse_specs; a
-# backtick-bounded capture would silently drop multi-method rows.
-ROW = re.compile(r"^\|\s*([A-Z]+-L\d+)\s*\|[^|]*\|\s*`?([^`|]+?)`?\s*\|\s*([^|]+?)\s*\|", re.M)
+# Logic-to-Code tables are matched by SHAPE, not one positional layout. The
+# Logic ID column is found by content (cells matching FEAT-L<n>, emphasis
+# stripped); the File and Class/Function columns are found by HEADER LABEL,
+# falling back to the legacy fixed positions (col 3 = file, col 4 = method) when
+# a table carries no header row. This tolerates `**[ID]**` emphasis, extra
+# columns, and 6/7-column variants (issues #1/#4/#5).
+_FILE_KEYS = ("file",)
+_METHOD_KEYS = ("function", "method", "class", "callable", "symbol", "implementation")
+
+
+def clean_methods(cell):
+    # Each `Class::method()` of a (possibly multi-method, backticked) cell, in
+    # order. A cell may list several methods separated by commas.
+    for part in cell.split(","):
+        name = part.replace("`", "").split("(")[0].split("::")[-1].strip()
+        name = re.sub(r"\s+.*$", "", name)  # drop trailing notes like "et al."
+        if name:
+            yield name
 
 
 def clean_method(cell):
-    # First `Class::method()` of a (possibly multi-method, backticked) cell.
-    first = cell.replace("`", "").split(",")[0]
-    name = first.split("(")[0].split("::")[-1].strip()
-    return re.sub(r"\s+.*$", "", name)  # drop trailing notes like "et al."
+    # Back-compat: the first method of a multi-method cell.
+    return next(clean_methods(cell), "")
+
+
+def _row_cells(line):
+    s = line.strip()
+    s = s[1:] if s.startswith("|") else s
+    s = s[:-1] if s.endswith("|") else s
+    return [c.strip() for c in s.split("|")]
+
+
+def _row_lid(cell):
+    # The Logic ID in a cell, with markdown emphasis/backticks/brackets removed.
+    t = re.sub(r"[`*\[\]]", "", cell).strip()
+    return t if LID_RE.match(t) else None
+
+
+def _is_separator(cells):
+    # A markdown header underline row: | :--- | ---: | ... |
+    return any(cells) and all(c == "" or re.fullmatch(r":?-{2,}:?", c) for c in cells)
+
+
+def _iter_table_rows(text):
+    # Yield (logic_id, file_cell, method_cell) for every Logic-to-Code row in
+    # any pipe-table in the document.
+    block = []
+    for line in text.split("\n"):
+        if line.lstrip().startswith("|"):
+            block.append(line)
+            continue
+        yield from _rows_from_block(block)
+        block = []
+    yield from _rows_from_block(block)
+
+
+def _rows_from_block(block):
+    rows = [_row_cells(l) for l in block]
+    rows = [r for r in rows if not _is_separator(r)]
+    if not rows:
+        return
+    ncols = max(len(r) for r in rows)
+    # Logic ID column = the column with the most LID-bearing cells.
+    lid_col, best = 0, 0
+    for c in range(ncols):
+        cnt = sum(1 for r in rows if c < len(r) and _row_lid(r[c]))
+        if cnt > best:
+            best, lid_col = cnt, c
+    if not best:
+        return  # not a Logic-to-Code table
+    # Header = first row without a LID in the LID column. Its labels locate the
+    # File and Class/Function columns; absent a header, fall back to legacy
+    # fixed positions (3rd col = file, 4th col = method).
+    header = next((r for r in rows
+                   if not (lid_col < len(r) and _row_lid(r[lid_col]))), None)
+    file_col = method_col = None
+    if header:
+        for c, cell in enumerate(header):
+            lab = cell.lower()
+            if file_col is None and any(k in lab for k in _FILE_KEYS):
+                file_col = c
+            if method_col is None and any(k in lab for k in _METHOD_KEYS):
+                method_col = c
+    if file_col is None:
+        file_col = min(2, ncols - 1)
+    if method_col is None:
+        method_col = min(3, ncols - 1)
+    for r in rows:
+        lid = _row_lid(r[lid_col]) if lid_col < len(r) else None
+        if not lid:
+            continue
+        fcell = re.sub(r"[`*]", "", r[file_col]).strip() if file_col < len(r) else ""
+        mcell = r[method_col] if method_col < len(r) else ""
+        yield lid, fcell, mcell
 
 
 def parse_specs(sem_dir):
@@ -122,18 +256,40 @@ def parse_specs(sem_dir):
         text = md.read_text()
         feat = re.search(r"feature_id:\s*(\S+)", text)
         declared = re.search(r"logic_id_count:\s*(\d+)", text)
-        n = 0
-        for lid, fpath, method in ROW.findall(text):
-            method = clean_method(method)
-            if not re.match(r"^[A-Za-z_]\w*$", method):
-                continue  # skip class-attribute / non-method rows
-            n += 1
-            yield dict(logic_id=lid, feature=feat.group(1) if feat else "",
-                       spec=f"tech/{md.name}", declared_file=fpath.strip(), method=method)
-        if declared and int(declared.group(1)) != n:
+        seen = set()
+        for lid, fpath, mcell in _iter_table_rows(text):
+            methods = [m for m in clean_methods(mcell) if NAME_RE.match(m)]
+            if not methods:
+                continue  # no resolvable name in the row
+            seen.add(lid)
+            multi = len(methods) > 1
+            for k, method in enumerate(methods, 1):
+                # Each method in a multi-method cell becomes its own sub-anchor
+                # (LID#1, LID#2) so drift is caught when ANY listed method moves.
+                yield dict(logic_id=lid,
+                           anchor_id=f"{lid}#{k}" if multi else lid,
+                           feature=feat.group(1) if feat else "",
+                           spec=f"tech/{md.name}",
+                           declared_file=fpath.strip(), method=method)
+        if declared and int(declared.group(1)) != len(seen):
             print(f"  warning: {md.name} declares logic_id_count="
-                  f"{declared.group(1)} but {n} method rows parsed",
+                  f"{declared.group(1)} but {len(seen)} Logic IDs parsed",
                   file=sys.stderr)
+
+
+def count_logic_ids(sem_dir):
+    # Distinct Logic IDs (not method sub-anchors) across all specs.
+    return len({(a["spec"], a["logic_id"]) for a in parse_specs(sem_dir)})
+
+
+def declared_counts(sem_dir):
+    # The logic_id_count each spec declares in frontmatter, keyed by spec path.
+    out = {}
+    for md in sorted((sem_dir / "tech").glob("*.md")):
+        m = re.search(r"logic_id_count:\s*(\d+)", md.read_text())
+        if m:
+            out[f"tech/{md.name}"] = int(m.group(1))
+    return out
 
 
 # Logic anchors can point to any symbol kind, not just methods.
@@ -206,6 +362,18 @@ def cmd_anchor(sem_dir, project):
                      content_hash=ch, hash_source=hs, start_end=se,
                      parent_class=None, status=st, verified_at=now())
         out["anchors"].append(a)
+    # coverage: declared (frontmatter) vs anchored (distinct Logic IDs that
+    # produced >=1 anchor row), per spec. `check` uses this to tell code drift
+    # apart from a broken pipeline / under-coverage (issue #2).
+    declared = declared_counts(sem_dir)
+    anchored_by_spec = {}
+    for x in out["anchors"]:
+        anchored_by_spec.setdefault(x["spec"], set()).add(x["logic_id"])
+    out["coverage"] = [
+        {"spec": spec, "declared": d, "anchored": len(anchored_by_spec.get(spec, ()))}
+        for spec, d in sorted(declared.items())]
+    out["declared_logic_ids"] = sum(declared.values())
+    out["anchored_logic_ids"] = len({(x["spec"], x["logic_id"]) for x in out["anchors"]})
     (sem_dir / ".anchors.json").write_text(json.dumps(out, indent=2))
     n = len(out["anchors"])
     by = {}
@@ -215,8 +383,18 @@ def cmd_anchor(sem_dir, project):
     print("  status:", ", ".join(f"{k}={v}" for k, v in sorted(by.items())))
 
 
+def load_anchors(sem_dir, project):
+    # Read the sidecar, or exit with a hint (not a traceback) if it is missing.
+    sidecar = sem_dir / ".anchors.json"
+    if not sidecar.is_file():
+        print(f"no baseline at {sidecar} - "
+              f"run `livedocs anchor {sem_dir} {project}` first", file=sys.stderr)
+        sys.exit(2)
+    return json.loads(sidecar.read_text())
+
+
 def cmd_check(sem_dir, project):
-    data = json.loads((sem_dir / ".anchors.json").read_text())
+    data = load_anchors(sem_dir, project)
     root = project_root(project)
     drift = []
     for a in data["anchors"]:
@@ -250,15 +428,42 @@ def cmd_check(sem_dir, project):
         else:
             if s.get("fp") != a.get("fp"):
                 drift.append((a, "changed"))
+    # Coverage problems are distinct from code drift: 0 anchored while specs
+    # declare Logic IDs means the pipeline is broken (e.g. unparseable specs);
+    # fewer anchored than declared per spec is under-coverage (issue #2).
+    declared_total = data.get("declared_logic_ids", 0)
+    anchored_total = data.get(
+        "anchored_logic_ids",
+        len({(a["spec"], a["logic_id"]) for a in data["anchors"]}))
+    coverage = []
+    if declared_total and anchored_total == 0:
+        coverage.append((f"0 of {declared_total} declared Logic IDs anchored",
+                         "pipeline broken - specs unparseable? re-run `anchor`"))
+    for cov in data.get("coverage", []):
+        if cov["anchored"] < cov["declared"]:
+            coverage.append((f"{cov['anchored']} of {cov['declared']} anchored",
+                             cov["spec"]))
+
     for a, st in sorted(drift, key=lambda x: x[1]):
-        print(f"  {st.upper():18} {a['logic_id']:10} {a['method']:32} {a['spec']}")
-    print(f"\n{len(drift)} stale / {len(data['anchors'])} anchors")
-    sys.exit(1 if drift else 0)
+        name = a.get("anchor_id") or a["logic_id"]
+        print(f"  {st.upper():18} {name:12} {a['method']:32} {a['spec']}")
+    for detail, where in coverage:
+        print(f"  {'UNDER-COVERED':18} {detail:24} {where}")
+    summary = f"\n{len(drift)} stale / {len(data['anchors'])} anchors"
+    if coverage:
+        summary += f"; {len(coverage)} coverage issue(s)"
+    print(summary)
+    # 0 = clean, 1 = drift, 2 = coverage collapse / under-coverage (takes
+    # priority: incomplete coverage means the drift result is not trustworthy).
+    sys.exit(2 if coverage else (1 if drift else 0))
 
 
 def cmd_enrich(sem_dir, project, logic_id):
-    a = next(x for x in json.loads((sem_dir / ".anchors.json").read_text())["anchors"]
-             if x["logic_id"] == logic_id)
+    data = load_anchors(sem_dir, project)
+    a = next((x for x in data["anchors"]
+              if logic_id in (x["logic_id"], x.get("anchor_id"))), None)
+    if a is None:
+        sys.exit(f"no anchor with logic_id {logic_id} in {sem_dir/'.anchors.json'}")
     print(json.dumps(cbm("trace_path", {"project": project, "function_name": a["method"],
                                         "direction": "both", "depth": 2}), indent=2))
 
@@ -290,7 +495,7 @@ def _codebase_section(sem_dir, rel):
     # adapter-specific files (a top index, the structural index) are emitted only
     # when those files actually exist, so the core stays generic.
     specs = _spec_meta(sem_dir)
-    logic_ids = sum(1 for _ in parse_specs(sem_dir))
+    logic_ids = count_logic_ids(sem_dir)
     modules = sorted({m for _, _, mods in specs for m in mods})
 
     body = [f"- {len(specs)} features, {logic_ids} Logic IDs"
@@ -355,20 +560,42 @@ def cmd_inject(sem_dir, project, project_dir=None):
             action = "appended Codebase section to CLAUDE.md"
         claude_md.write_text(text)
     specs = list((sem_dir / "tech").glob("*.md"))
-    logic_ids = sum(1 for _ in parse_specs(sem_dir))
+    logic_ids = count_logic_ids(sem_dir)
     print(f"  {action} ({len(specs)} features, {logic_ids} Logic IDs) -> {claude_md}")
 
 
-if __name__ == "__main__":
-    args = sys.argv[1:]
+USAGE = ("usage:\n"
+         "  livedocs anchor <sem_dir> <project>\n"
+         "  livedocs check  <sem_dir> <project>\n"
+         "  livedocs inject <sem_dir> <project> [project_dir]\n"
+         "  livedocs enrich <sem_dir> <project> <logic_id>")
+
+
+def main(args):
+    if len(args) < 3:
+        print(USAGE, file=sys.stderr)
+        return 2
     cmd, sem, proj = args[0], pathlib.Path(args[1]), args[2]
     if cmd == "anchor":
         cmd_anchor(sem, proj)
     elif cmd == "check":
         cmd_check(sem, proj)
     elif cmd == "enrich":
+        if len(args) < 4:
+            print(USAGE, file=sys.stderr)
+            return 2
         cmd_enrich(sem, proj, args[3])
     elif cmd == "inject":
         cmd_inject(sem, proj, args[3] if len(args) > 3 else None)
     else:
-        sys.exit(f"unknown command: {cmd}")
+        print(f"unknown command: {cmd}\n{USAGE}", file=sys.stderr)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except BackendError as e:
+        print(f"error: {e}", file=sys.stderr)
+        sys.exit(3)

@@ -2,7 +2,8 @@
 
 This file lists cross-repo work that is deliberately not being done yet. The
 adapter itself has been rewired to run standalone (item 2 below is done); what
-remains is the plugin-side consolidation and the release-archive installer. The
+remains is the plugin-side consolidation and checksum-verified release archives
+for the installer (it currently fetches the `main` branch tarball). The
 adapter started as a verbatim copy of the drupal-workflow 2.0.1 documentation
 feature; the files changed since are listed in `adapters/drupal/README.md` under
 "Standalone wiring".
@@ -50,7 +51,10 @@ When this work is picked up:
 
 ## 4. Installer release path
 
-`install.sh` currently copies files out of this working checkout. Before
-publishing, change it to download a release archive and check it against a
-published `SHA256` (a `checksums.txt`), the way codebase-memory-mcp does for its
-binary. This is marked inline in `install.sh` as `TODO(release)`.
+`install.sh` self-bootstraps: from a checkout it copies files out of the working
+tree, and when piped from `curl` it downloads the `main` branch tarball
+(`https://github.com/$SLUG/archive/$REF.tar.gz`) into a temp dir and installs
+from there. The remaining work is to point it at tagged, signed **release**
+archives and verify them against a published `SHA256` (a `checksums.txt`), the
+way codebase-memory-mcp does for its binary, instead of fetching an unpinned
+branch tarball.

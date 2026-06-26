@@ -19,19 +19,65 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 # Resolve the directory this script lives in (the repo checkout) so we can copy
 # assets out of it. Works whether invoked by path, by symlink, or via `bash`.
-LIVEDOCS_SELF="${BASH_SOURCE[0]}"
-while [ -h "$LIVEDOCS_SELF" ]; do
+# When piped from curl (`curl ... | bash`) there is no source file, so
+# BASH_SOURCE[0] is unset; default it to "" so `set -u` does not abort here.
+LIVEDOCS_SELF="${BASH_SOURCE[0]:-}"
+while [ -n "$LIVEDOCS_SELF" ] && [ -h "$LIVEDOCS_SELF" ]; do
   _dir="$(cd -P "$(dirname "$LIVEDOCS_SELF")" >/dev/null 2>&1 && pwd)"
   LIVEDOCS_SELF="$(readlink "$LIVEDOCS_SELF")"
   case "$LIVEDOCS_SELF" in /*) ;; *) LIVEDOCS_SELF="$_dir/$LIVEDOCS_SELF" ;; esac
 done
-REPO_DIR="$(cd -P "$(dirname "$LIVEDOCS_SELF")" >/dev/null 2>&1 && pwd)"
+if [ -n "$LIVEDOCS_SELF" ]; then
+  REPO_DIR="$(cd -P "$(dirname "$LIVEDOCS_SELF")" >/dev/null 2>&1 && pwd)"
+else
+  REPO_DIR="$PWD"
+fi
 
-# Asset sources within the repo checkout.
-# EXTRACT-ONLY: today we copy from the repo's adapters/ + core/ checkout.
-# TODO(release): swap these for a downloaded release tarball verified against a
-#                published SHA256 (checksums.txt), the way codebase-memory-mcp
-#                does for its binary, instead of copying from a working tree.
+# ---------------------------------------------------------------------------
+# 0a. Self-bootstrap when there is no checkout (curl ... | bash)
+# ---------------------------------------------------------------------------
+# The installer copies assets out of the repo (core/, adapters/, commands/). The
+# hosted one-liner pipes this script straight from raw.githubusercontent into
+# bash, so those assets are not on disk next to us. Detect that (the canonical
+# core file is missing under REPO_DIR) and fetch a tarball of the repo into a
+# temp dir, then treat that as the checkout. Override the source with env vars:
+#   LIVEDOCS_REPO_SLUG (default gkastanis/livedocs) and LIVEDOCS_REF (default main).
+LIVEDOCS_REPO_SLUG="${LIVEDOCS_REPO_SLUG:-gkastanis/livedocs}"
+LIVEDOCS_REF="${LIVEDOCS_REF:-main}"
+LIVEDOCS_TARBALL_URL="https://github.com/${LIVEDOCS_REPO_SLUG}/archive/${LIVEDOCS_REF}.tar.gz"
+LIVEDOCS_BOOTSTRAP_TMP=""
+_cleanup_bootstrap() { [ -n "$LIVEDOCS_BOOTSTRAP_TMP" ] && rm -rf "$LIVEDOCS_BOOTSTRAP_TMP"; }
+
+if [ ! -f "$REPO_DIR/core/livedocs.py" ]; then
+  printf '\n==> Fetching livedocs (%s@%s)\n' "$LIVEDOCS_REPO_SLUG" "$LIVEDOCS_REF"
+  if command -v curl >/dev/null 2>&1; then
+    _dl() { curl -fsSL "$1"; }
+  elif command -v wget >/dev/null 2>&1; then
+    _dl() { wget -qO- "$1"; }
+  else
+    echo "ERROR: need curl or wget to download livedocs from $LIVEDOCS_TARBALL_URL" >&2
+    exit 1
+  fi
+  if ! command -v tar >/dev/null 2>&1; then
+    echo "ERROR: need tar to unpack the livedocs download." >&2
+    exit 1
+  fi
+  LIVEDOCS_BOOTSTRAP_TMP="$(mktemp -d "${TMPDIR:-/tmp}/livedocs-XXXXXX")"
+  trap _cleanup_bootstrap EXIT
+  if ! _dl "$LIVEDOCS_TARBALL_URL" | tar -xz -C "$LIVEDOCS_BOOTSTRAP_TMP"; then
+    echo "ERROR: failed to download or unpack $LIVEDOCS_TARBALL_URL" >&2
+    exit 1
+  fi
+  # GitHub archives extract to a single top-level dir (e.g. livedocs-main/).
+  _extracted="$(find "$LIVEDOCS_BOOTSTRAP_TMP" -mindepth 1 -maxdepth 1 -type d | head -n1)"
+  if [ -z "$_extracted" ] || [ ! -f "$_extracted/core/livedocs.py" ]; then
+    echo "ERROR: downloaded archive is missing core/livedocs.py (looked in ${_extracted:-<empty>})." >&2
+    exit 1
+  fi
+  REPO_DIR="$_extracted"
+fi
+
+# Asset sources within the repo checkout (local or freshly downloaded above).
 CORE_BRIDGE="$REPO_DIR/core/livedocs.py"
 ADAPTER_DIR="$REPO_DIR/adapters/drupal"
 ADAPTER_SKILLS_DIR="$ADAPTER_DIR/skills"
@@ -75,6 +121,32 @@ write_tagged() {
 # codebase-memory-mcp upstream.
 CBM_INSTALL_URL="https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.sh"
 CBM_REPO_URL="https://github.com/DeusData/codebase-memory-mcp"
+
+# Minimum codebase-memory-mcp the livedocs assets are known to work against.
+# Bump this when livedocs starts relying on a newer cbm CLI/graph feature; the
+# installer warns (does not fail) when an older cbm is already present.
+CBM_MIN_VERSION="0.8.0"
+
+# Pull a dotted version (X.Y or X.Y.Z) out of arbitrary `--version` output.
+cbm_extract_version() {
+  printf '%s\n' "$1" | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -n1
+}
+
+# version_ge HAVE MIN -> exit 0 if HAVE >= MIN by numeric dotted comparison.
+# Pure-shell (no `sort -V`, which is absent on some platforms). Missing
+# components count as 0; a non-numeric suffix on a component is ignored.
+version_ge() {
+  local i h m; local -a ha ma
+  IFS=. read -r -a ha <<<"$1"
+  IFS=. read -r -a ma <<<"$2"
+  for i in 0 1 2; do
+    h="${ha[i]:-0}"; h="${h%%[!0-9]*}"; h="${h:-0}"
+    m="${ma[i]:-0}"; m="${m%%[!0-9]*}"; m="${m:-0}"
+    [ "$h" -gt "$m" ] && return 0
+    [ "$h" -lt "$m" ] && return 1
+  done
+  return 0
+}
 
 # Drupal extension map applied to codebase-memory-mcp config.
 read -r -d '' CBM_EXTRA_EXT_JSON <<'JSON' || true
@@ -252,8 +324,17 @@ info "git OK ($(git --version 2>&1))"
 # ---------------------------------------------------------------------------
 step "Ensuring codebase-memory-mcp backend"
 if command -v codebase-memory-mcp >/dev/null 2>&1; then
-  ver="$(codebase-memory-mcp --version 2>&1 || echo '?')"
-  info "codebase-memory-mcp present ($ver)"
+  ver_raw="$(codebase-memory-mcp --version 2>&1 || echo '?')"
+  ver="$(cbm_extract_version "$ver_raw")"
+  if [ -z "$ver" ]; then
+    info "codebase-memory-mcp present ($ver_raw); could not parse a version, skipping the >= $CBM_MIN_VERSION check."
+  elif version_ge "$ver" "$CBM_MIN_VERSION"; then
+    info "codebase-memory-mcp present ($ver, >= $CBM_MIN_VERSION required)."
+  else
+    warn "codebase-memory-mcp $ver is older than the required $CBM_MIN_VERSION; livedocs may misbehave."
+    warn "  update the graph backend with:"
+    warn "    curl -fsSL $CBM_INSTALL_URL | bash"
+  fi
 else
   info "codebase-memory-mcp not found."
   if ask "Install codebase-memory-mcp from $CBM_REPO_URL now?" y; then

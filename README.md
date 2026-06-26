@@ -253,8 +253,21 @@ livedocs/
 
 ## Install
 
-This is an unpublished work in progress, so there is no hosted install URL yet.
-Run the installer from a local checkout:
+Install with one command. The script downloads the repo, wires everything up,
+and cleans up after itself — no clone required:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/gkastanis/livedocs/main/install.sh | bash
+```
+
+Pass installer flags after `bash -s --`, for example to skip the agent wiring:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/gkastanis/livedocs/main/install.sh | bash -s -- --skip-agents
+```
+
+Piped like this the installer runs unattended (it assumes "yes"). To preview it
+first, or to manage an existing install, run it from a checkout instead:
 
 ```bash
 ./install.sh            # ask before each step
@@ -271,6 +284,35 @@ default. On a machine that already has the drupal-workflow plugin, run
 `./install.sh --skip-agents` to install the command-line tool without the
 skills, command, and agent, because those share names with the plugin's and
 would collide. Run `./install.sh --help` for the options.
+
+## Updating
+
+There is no separate update command — re-run the installer. It pulls the latest
+`main` and rewrites only the files that actually changed, so it doubles as the
+upgrade path:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/gkastanis/livedocs/main/install.sh | bash
+```
+
+Add `--force` to reinstall every asset regardless of whether it changed.
+
+Two things the livedocs installer does **not** update:
+
+- **The graph backend (codebase-memory-mcp).** It is installed only if missing
+  and otherwise left as-is; the installer just checks it meets a minimum version
+  and warns if it does not. The graph backend has its own update command:
+
+  ```bash
+  curl -fsSL https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.sh | bash
+  ```
+
+  The graph *contents* need no manual update: auto-index keeps the index current
+  on git changes while your agent session is connected.
+
+- **Whole skills, commands, or agents that a newer livedocs stopped shipping.**
+  Files *within* a still-shipped skill are pruned on update, but an asset that is
+  dropped entirely between versions is only removed by `./install.sh --uninstall`.
 
 ## Running the tests
 
@@ -303,10 +345,10 @@ against a real project when you set `OB_DOCS` and `OB_PROJECT`. See
 This is a working proof of concept. The core matching and drift detection are
 tested against real projects. The Drupal adapter began as a copy of the original
 plugin files and has been rewired to run standalone, so the `drupal-semantic`
-command works without the plugin runtime. The installer still copies files from
-this checkout rather than from a published release. The remaining cross-repo work
-(folding the documentation feature back into drupal-workflow, and the
-release-archive installer) is listed in `docs/REWIRING-NOTES.md`.
+command works without the plugin runtime. The installer fetches assets from the
+`main` branch tarball; signed, checksum-verified release archives are the
+remaining packaging work. The cross-repo work (folding the documentation feature
+back into drupal-workflow) is listed in `docs/REWIRING-NOTES.md`.
 
 ## License
 

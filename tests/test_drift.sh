@@ -185,6 +185,227 @@ PY
 grepq "S0a count-mismatch warning emitted" 'declares logic_id_count=4' "$pwarn"
 rm -rf "$PT"
 
+# --- S0c: parser format flexibility (emphasis, extra/7 columns, bare 4-col) --
+# Issue #1: columns are located by HEADER LABEL and markdown emphasis is stripped
+# from the ID cell, so one positional layout is not assumed.
+echo "=== S0c: parser tolerates emphasis + extra/variant columns ==="
+PT="$(mktemp -d)"; mkdir -p "$PT/tech"
+cat > "$PT/tech/FMT_01.md" <<'MD'
+---
+feature_id: FMT
+---
+| Logic ID | Business Rule | Component Type | File Path | Class/Function | Complexity |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **[FMT-L1]** | rule | Service | `src/A.php` | `A::doIt()` | Low |
+| **FMT-L2**   | rule | Service | `src/B.php` | `B::go()` | Low |
+MD
+cat > "$PT/tech/BARE_01.md" <<'MD'
+---
+feature_id: BARE
+---
+| Logic ID | Description | File | Method |
+| BARE-L1 | x | `src/C.php` | `C::run()` |
+MD
+cat > "$PT/tech/SEV_01.md" <<'MD'
+---
+feature_id: SEV
+---
+| Logic ID | Business Rule | Component Type | File Path | Class/Function | Complexity | Notes |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| SEV-L1 | r | Svc | `src/D.php` | `D::a()` | Low | n/a |
+MD
+cdump=$(python3 - "$PT" "$BRIDGE" <<'PY' 2>/dev/null
+import sys, importlib.util, pathlib
+spec=importlib.util.spec_from_file_location("c", sys.argv[2]); c=importlib.util.module_from_spec(spec); spec.loader.exec_module(c)
+for r in c.parse_specs(pathlib.Path(sys.argv[1])):
+    print(f"{r['anchor_id']}|{r['declared_file']}|{r['method']}")
+PY
+)
+echo "$cdump"
+grepq "S0c emphasis [ID] parsed (right file+method)" 'FMT-L1|src/A.php|doIt' "$cdump"
+grepq "S0c emphasis **ID** parsed"                   'FMT-L2|src/B.php|go'   "$cdump"
+grepq "S0c bare 4-col still parses (no regression)"  'BARE-L1|src/C.php|run' "$cdump"
+grepq "S0c 7-column variant parses"                  'SEV-L1|src/D.php|a'    "$cdump"
+rm -rf "$PT"
+
+# --- S0d: multi-method cell -> one sub-anchor per method (issue #4) ----------
+echo "=== S0d: multi-method cell -> one sub-anchor per method ==="
+PT="$(mktemp -d)"; mkdir -p "$PT/tech"
+cat > "$PT/tech/MM_01.md" <<'MD'
+---
+feature_id: MM
+---
+| Logic ID | Description | File | Class/Function | Cplx |
+| :--- | :--- | :--- | :--- | :--- |
+| MM-L1 | two methods | `src/A.php` | `A::foo()`, `A::bar()` | Low |
+| MM-L2 | one method  | `src/A.php` | `A::solo()` | Low |
+MD
+ddump=$(python3 - "$PT" "$BRIDGE" <<'PY' 2>/dev/null
+import sys, importlib.util, pathlib
+spec=importlib.util.spec_from_file_location("c", sys.argv[2]); c=importlib.util.module_from_spec(spec); spec.loader.exec_module(c)
+for r in c.parse_specs(pathlib.Path(sys.argv[1])):
+    print(f"{r['logic_id']}|{r['anchor_id']}|{r['method']}")
+PY
+)
+echo "$ddump"
+grepq "S0d multi-method first sub-anchor"  'MM-L1|MM-L1#1|foo' "$ddump"
+grepq "S0d multi-method second sub-anchor" 'MM-L1|MM-L1#2|bar' "$ddump"
+grepq "S0d single method stays bare"       'MM-L2|MM-L2|solo'  "$ddump"
+rm -rf "$PT"
+
+# --- S0e: dotted/namespaced symbol name is parsed, not dropped (issue #5) ----
+echo "=== S0e: dotted/namespaced symbol name parsed, no spurious warning ==="
+PT="$(mktemp -d)"; mkdir -p "$PT/tech"
+cat > "$PT/tech/JS_01.md" <<'MD'
+---
+feature_id: JS
+logic_id_count: 1
+---
+| Logic ID | Business Rule | File Path | Class/Function | Complexity |
+| :--- | :--- | :--- | :--- | :--- |
+| JS-L1 | Init widget | `js/app.behaviors.js` | `App.behaviors.initWidget` | Low |
+MD
+edump=$(python3 - "$PT" "$BRIDGE" <<'PY' 2>&1
+import sys, importlib.util, pathlib
+spec=importlib.util.spec_from_file_location("c", sys.argv[2]); c=importlib.util.module_from_spec(spec); spec.loader.exec_module(c)
+for r in c.parse_specs(pathlib.Path(sys.argv[1])):
+    print(f"{r['anchor_id']}|{r['method']}")
+PY
+)
+echo "$edump"
+grepq  "S0e dotted JS behavior parsed"        'JS-L1|App.behaviors.initWidget' "$edump"
+ngrepq "S0e no spurious count warning for JS" 'declares logic_id_count' "$edump"
+rm -rf "$PT"
+
+# --- S0f: check exit codes for coverage collapse / under-coverage (issue #2) --
+# 0 = clean, 1 = drift, 2 = coverage collapse / under-coverage. project_root is
+# stubbed so this is hermetic (no backend): crafted sidecars drive the verdict.
+echo "=== S0f: check exit codes for coverage collapse / under-coverage ==="
+CT="$(mktemp -d)"
+check_exit() {  # <sidecar-json> -> prints command output + 'EXIT <code>'
+  printf '%s' "$1" > "$CT/.anchors.json"
+  python3 - "$CT" "$BRIDGE" <<'PY' 2>&1
+import sys, importlib.util, pathlib
+spec = importlib.util.spec_from_file_location("c", sys.argv[2])
+c = importlib.util.module_from_spec(spec); spec.loader.exec_module(c)
+c.project_root = lambda p: None          # no backend
+try:
+    c.cmd_check(pathlib.Path(sys.argv[1]), "p")
+except SystemExit as e:
+    print("EXIT", e.code)
+PY
+}
+collapse=$(check_exit '{"schema":2,"project":"p","anchors":[],"coverage":[{"spec":"tech/X.md","declared":5,"anchored":0}],"declared_logic_ids":5,"anchored_logic_ids":0}')
+echo "$collapse"
+grepq "S0f collapse exits 2"  '^EXIT 2$' "$collapse"
+grepq "S0f collapse message"  '0 of 5 declared Logic IDs anchored' "$collapse"
+under=$(check_exit '{"schema":2,"project":"p","anchors":[],"coverage":[{"spec":"tech/Y.md","declared":10,"anchored":6}],"declared_logic_ids":10,"anchored_logic_ids":6}')
+echo "$under"
+grepq "S0f under-coverage exits 2"   '^EXIT 2$' "$under"
+grepq "S0f under-coverage message"   '6 of 10 anchored' "$under"
+grepq "S0f names under-covered spec" 'tech/Y.md' "$under"
+clean=$(check_exit '{"schema":2,"project":"p","anchors":[],"coverage":[{"spec":"tech/Z.md","declared":3,"anchored":3}],"declared_logic_ids":3,"anchored_logic_ids":3}')
+echo "$clean"
+grepq "S0f fully-covered (no graph) exits 0" '^EXIT 0$' "$clean"
+rm -rf "$CT"
+
+# --- S0g: CLI prints usage / hints, never raw tracebacks (issue #3) ----------
+echo "=== S0g: CLI guards (no tracebacks) ==="
+g1=$(python3 "$BRIDGE" 2>&1; echo "rc=$?")
+echo "$g1"
+ngrepq "S0g no args: no traceback" 'Traceback' "$g1"
+grepq  "S0g no args: usage shown"  'usage:'    "$g1"
+grepq  "S0g no args: exit 2"       'rc=2'      "$g1"
+g2=$(python3 "$BRIDGE" check 2>&1; echo "rc=$?")
+ngrepq "S0g short argv: no traceback" 'Traceback' "$g2"
+grepq  "S0g short argv: exit 2"       'rc=2'      "$g2"
+EM="$(mktemp -d)"; mkdir -p "$EM/tech"
+g3=$(python3 "$BRIDGE" check "$EM" someproj 2>&1; echo "rc=$?")
+echo "$g3"
+ngrepq "S0g missing sidecar: no traceback" 'Traceback'           "$g3"
+grepq  "S0g missing sidecar: anchor hint"  'run .livedocs anchor' "$g3"
+grepq  "S0g missing sidecar: exit 2"       'rc=2'                 "$g3"
+rm -rf "$EM"
+
+# --- S0h: cbm retries the cold-start error, raises on persistence (issue #6) --
+# Uses a fake cbm (LIVEDOCS_CBM) that returns the cold-start error JSON for the
+# first N-1 calls. Proves transient errors self-heal (deterministic runs) and a
+# persistent one raises BackendError instead of becoming a not_in_graph anchor.
+echo "=== S0h: cbm cold-start retry + BackendError ==="
+HT="$(mktemp -d)"
+cat > "$HT/fakecbm" <<'SH'
+#!/usr/bin/env bash
+n=$(cat "$HT_COUNTER" 2>/dev/null || echo 0); n=$((n+1)); echo "$n" > "$HT_COUNTER"
+if [ "$n" -ge "${FAKE_OK_ON:-999}" ]; then
+  echo '{"results":[{"qualified_name":"X","label":"Method"}]}'
+else
+  echo '{"error":"project not found or not indexed","available_projects":["p"]}'
+fi
+SH
+cat > "$HT/fakeempty" <<'SH'
+#!/usr/bin/env bash
+echo '{"results":[]}'
+SH
+chmod +x "$HT/fakecbm" "$HT/fakeempty"
+h1=$(HT_COUNTER="$HT/c1" FAKE_OK_ON=3 LIVEDOCS_CBM="$HT/fakecbm" python3 - "$BRIDGE" <<'PY' 2>&1
+import sys, importlib.util, os
+spec=importlib.util.spec_from_file_location("c", sys.argv[1]); c=importlib.util.module_from_spec(spec); spec.loader.exec_module(c)
+r = c.cbm("search_graph", {"project":"p"}, retries=5)
+print("RESULT_OK", bool(r.get("results")))
+print("CALLS", open(os.environ["HT_COUNTER"]).read().strip())
+PY
+)
+echo "$h1"
+grepq "S0h retries cold error then succeeds" 'RESULT_OK True' "$h1"
+grepq "S0h took exactly 3 backend calls"     'CALLS 3'        "$h1"
+h2=$(HT_COUNTER="$HT/c2" FAKE_OK_ON=999 LIVEDOCS_CBM="$HT/fakecbm" python3 - "$BRIDGE" <<'PY' 2>&1
+import sys, importlib.util
+spec=importlib.util.spec_from_file_location("c", sys.argv[1]); c=importlib.util.module_from_spec(spec); spec.loader.exec_module(c)
+try:
+    c.cbm("search_graph", {"project":"p"}, retries=2); print("NO_RAISE")
+except c.BackendError as e:
+    print("RAISED")
+PY
+)
+echo "$h2"
+grepq  "S0h persistent cold error raises BackendError" 'RAISED'   "$h2"
+ngrepq "S0h never silently returns on persistent error" 'NO_RAISE' "$h2"
+h3=$(LIVEDOCS_CBM="$HT/fakeempty" python3 - "$BRIDGE" <<'PY' 2>&1
+import sys, importlib.util
+spec=importlib.util.spec_from_file_location("c", sys.argv[1]); c=importlib.util.module_from_spec(spec); spec.loader.exec_module(c)
+print("EMPTY_OK", c.cbm("search_graph", {"project":"p"}, retries=2) == {"results": []})
+PY
+)
+echo "$h3"
+grepq "S0h genuine empty result is NOT retried" 'EMPTY_OK True' "$h3"
+
+# --- S0i: empty root_path warns; LIVEDOCS_ROOT override restores it (issue #7) -
+echo "=== S0i: empty root_path warning + LIVEDOCS_ROOT override ==="
+cat > "$HT/fakeroot" <<'SH'
+#!/usr/bin/env bash
+echo '{"projects":[{"name":"p","root_path":""}]}'
+SH
+chmod +x "$HT/fakeroot"
+i1=$(LIVEDOCS_CBM="$HT/fakeroot" python3 - "$BRIDGE" <<'PY' 2>&1
+import sys, importlib.util
+spec=importlib.util.spec_from_file_location("c", sys.argv[1]); c=importlib.util.module_from_spec(spec); spec.loader.exec_module(c)
+print("ROOT", repr(c.project_root("p")))
+PY
+)
+echo "$i1"
+grepq "S0i empty root_path warns"   'no root_path' "$i1"
+grepq "S0i empty root_path -> None" 'ROOT None'    "$i1"
+i2=$(LIVEDOCS_ROOT=/tmp/ld_override LIVEDOCS_CBM="$HT/fakeroot" python3 - "$BRIDGE" <<'PY' 2>&1
+import sys, importlib.util
+spec=importlib.util.spec_from_file_location("c", sys.argv[1]); c=importlib.util.module_from_spec(spec); spec.loader.exec_module(c)
+print("ROOT", repr(c.project_root("p")))
+PY
+)
+echo "$i2"
+grepq  "S0i LIVEDOCS_ROOT override wins"      'ROOT .*/tmp/ld_override' "$i2"
+ngrepq "S0i override suppresses root warning" 'no root_path'            "$i2"
+rm -rf "$HT"
+
 # --- S0b: CLAUDE.md injection (no graph; explicit project dir) ---------------
 # `livedocs inject` reuses parse_specs and needs no graph when given the project
 # dir, so it runs here without cbm. Proves: create, idempotent re-run (one marker

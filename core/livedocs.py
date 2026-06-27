@@ -509,7 +509,10 @@ def _codebase_section(sem_dir, rel):
     if (sem_dir / "structural").is_dir():
         body.append(f"- Structural index (what exists, generated from code): "
                     f"`{rel}/structural/*.md`")
-    body.append("- A Logic ID such as `ORD-L1` names one method; find it in the "
+    # Use a real Logic ID from the first spec so the example is always live;
+    # fall back to a generic token only if nothing resolvable was parsed.
+    example_lid = next((a["logic_id"] for a in parse_specs(sem_dir)), "FEAT-L1")
+    body.append(f"- A Logic ID such as `{example_lid}` names one method; find it in the "
                 f"`{rel}/tech/{{CODE}}_*.md` file for its feature")
     body.append("- Run `/livedocs-check` to confirm the docs still match the code")
 
